@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "tpl": "69dd0de23dfe95d9e70b5ebb",
+  "lockStackSize": true,
+  "unitsPerCoin": 100,
+  "rewards": {
+    "perTier": 200,
+    "perContract": 100
+  },
+  "containers": [
+    {
+      "name": "Safe",
+      "weightPercent": 0.3
+    },
+    {
+      "name": "SafeBank",
+      "weightPercent": 0.3
+    },
+    {
+      "name": "SafeBank_terra",
+      "weightPercent": 0.3
+    }
+  ],
+  "debug": false
+}

@@ -6,9 +6,9 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <RootNamespace>WeekendDrops</RootNamespace>
     <AssemblyName>WeekendDrops</AssemblyName>
-    <Version>1.0.6</Version>
-    <AssemblyVersion>1.0.6</AssemblyVersion>
-    <FileVersion>1.0.6</FileVersion>
+    <Version>1.0.7</Version>
+    <AssemblyVersion>1.0.7</AssemblyVersion>
+    <FileVersion>1.0.7</FileVersion>
     <Authors>20fpsguy</Authors>
     <Nullable>enable</Nullable>
   </PropertyGroup>

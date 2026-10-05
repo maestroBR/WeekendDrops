@@ -1,0 +1,459 @@
+{
+  "enabled": true,
+  "cardCount": 6,
+  "schedule": {
+    "startHour": 22,
+    "durationHours": 6,
+    "days": [],
+    "rerollDays": 7
+  },
+  "pool": [
+    {
+      "id": "nm_vityaz",
+      "name": "PP-19 Vityaz (built)",
+      "description": "SMG, fitted.",
+      "templateId": "59984ab886f7743e98271174",
+      "cost": 300,
+      "weight": 16,
+      "tier": "common",
+      "kit": true
+    },
+    {
+      "id": "nm_ak74m",
+      "name": "AK-74M (built)",
+      "description": "Assault rifle, fitted.",
+      "templateId": "5ac4cd105acfc40016339859",
+      "cost": 350,
+      "weight": 16,
+      "tier": "common",
+      "kit": true
+    },
+    {
+      "id": "nm_ak103",
+      "name": "AK-103 (built)",
+      "description": "Assault rifle, fitted.",
+      "templateId": "5ac66d2e5acfc43b321d4b53",
+      "cost": 400,
+      "weight": 15,
+      "tier": "common",
+      "kit": true
+    },
+    {
+      "id": "nm_ak105",
+      "name": "AK-105 (built)",
+      "description": "Assault rifle, fitted.",
+      "templateId": "5ac66d9b5acfc4001633997a",
+      "cost": 450,
+      "weight": 15,
+      "tier": "common",
+      "kit": true
+    },
+    {
+      "id": "nm_m4a1",
+      "name": "Colt M4A1 (built)",
+      "description": "Assault rifle, fitted.",
+      "templateId": "5447a9cd4bdc2dbd208b4567",
+      "cost": 500,
+      "weight": 14,
+      "tier": "common",
+      "kit": true
+    },
+    {
+      "id": "nm_mp7a2",
+      "name": "HK MP7A2 (built)",
+      "description": "SMG, fitted.",
+      "templateId": "5bd70322209c4d00d7167b8f",
+      "cost": 500,
+      "weight": 12,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_p90",
+      "name": "FN P90 (built)",
+      "description": "SMG, fitted.",
+      "templateId": "5cc82d76e24e8d00134b4b83",
+      "cost": 550,
+      "weight": 11,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_g36",
+      "name": "HK G36 (built)",
+      "description": "Assault rifle, fitted.",
+      "templateId": "623063e994fc3f7b302a9696",
+      "cost": 550,
+      "weight": 13,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_rd704",
+      "name": "RD-704 (built)",
+      "description": "Assault rifle, fitted.",
+      "templateId": "628a60ae6b1d481ff772e9c8",
+      "cost": 600,
+      "weight": 12,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_auga3",
+      "name": "Steyr AUG A3 (built)",
+      "description": "Bullpup rifle, fitted.",
+      "templateId": "63171672192e68c5460cebc5",
+      "cost": 600,
+      "weight": 12,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_scarl",
+      "name": "FN SCAR-L (built)",
+      "description": "Assault rifle, fitted.",
+      "templateId": "6184055050224f204c1da540",
+      "cost": 650,
+      "weight": 11,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_hk416",
+      "name": "HK 416A5 (built)",
+      "description": "Assault rifle, fitted.",
+      "templateId": "5bb2475ed4351e00853264e3",
+      "cost": 700,
+      "weight": 11,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_mdr762",
+      "name": "DT MDR 7.62 (built)",
+      "description": "Bullpup rifle, fitted.",
+      "templateId": "5dcbd56fdbd3d91b3e5468d5",
+      "cost": 700,
+      "weight": 11,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_scarh",
+      "name": "FN SCAR-H FDE (built)",
+      "description": "Battle rifle, fitted.",
+      "templateId": "6165ac306ef05c2ce828ef74",
+      "cost": 800,
+      "weight": 10,
+      "tier": "rare",
+      "kit": true
+    },
+    {
+      "id": "nm_sr25",
+      "name": "KAC SR-25 (built)",
+      "description": "Marksman rifle, fitted.",
+      "templateId": "5df8ce05b11454561e39243b",
+      "cost": 900,
+      "weight": 8,
+      "tier": "epic",
+      "kit": true,
+      "extras": [
+        {
+          "templateId": "6570254fcfc010a0f5006a22",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "nm_rsass",
+      "name": "RSASS (built)",
+      "description": "Marksman rifle, fitted.",
+      "templateId": "5a367e5dc4a282000e49738f",
+      "cost": 900,
+      "weight": 8,
+      "tier": "epic",
+      "kit": true,
+      "extras": [
+        {
+          "templateId": "6570254fcfc010a0f5006a22",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "nm_spear",
+      "name": "SIG MCX-SPEAR (built)",
+      "description": "Battle rifle, fitted.",
+      "templateId": "65290f395ae2ae97b80fdf2d",
+      "cost": 1000,
+      "weight": 7,
+      "tier": "epic",
+      "kit": true
+    },
+    {
+      "id": "nm_mk18",
+      "name": "SWORD Mk-18 (built)",
+      "description": ".338 marksman, fitted.",
+      "templateId": "5fc22d7c187fea44d52eda44",
+      "cost": 1100,
+      "weight": 6,
+      "tier": "epic",
+      "kit": true
+    },
+    {
+      "id": "nm_axmc",
+      "name": "AI AXMC (built)",
+      "description": ".338 bolt-action, fitted.",
+      "templateId": "627e14b21713922ded6f2c15",
+      "cost": 1100,
+      "weight": 6,
+      "tier": "epic",
+      "kit": true
+    },
+    {
+      "id": "nm_kit_recruit",
+      "name": "Recruit Loadout",
+      "description": "AK-74M, armour, helmet, bag, meds.",
+      "templateId": "5ac4cd105acfc40016339859",
+      "cost": 1000,
+      "weight": 10,
+      "tier": "rare",
+      "kit": true,
+      "extras": [
+        {
+          "templateId": "56dff026d2720bb8668b4567",
+          "count": 120
+        },
+        {
+          "templateId": "5b44d0de86f774503d30cba8",
+          "count": 1
+        },
+        {
+          "templateId": "5b40e1525acfc4771e1c6611",
+          "count": 1
+        },
+        {
+          "templateId": "5ca20d5986f774331e7c9602",
+          "count": 1
+        },
+        {
+          "templateId": "544fb45d4bdc2dee738b4568",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "nm_kit_assault",
+      "name": "Assault Loadout",
+      "description": "M4A1, Slick, FAST, rig, bag, meds.",
+      "templateId": "5447a9cd4bdc2dbd208b4567",
+      "cost": 1600,
+      "weight": 8,
+      "tier": "epic",
+      "kit": true,
+      "extras": [
+        {
+          "templateId": "59e690b686f7746c9f75e848",
+          "count": 120
+        },
+        {
+          "templateId": "5e4abb5086f77406975c9342",
+          "count": 1
+        },
+        {
+          "templateId": "5ab8dced86f774646209ec87",
+          "count": 1
+        },
+        {
+          "templateId": "5a154d5cfcdbcb001a3b00da",
+          "count": 1
+        },
+        {
+          "templateId": "545cdae64bdc2d39198b4568",
+          "count": 1
+        },
+        {
+          "templateId": "590c657e86f77412b013051d",
+          "count": 1
+        },
+        {
+          "templateId": "590c678286f77426c9660122",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "nm_kit_marksman",
+      "name": "Marksman Loadout",
+      "description": "SR-25, Slick, AirFrame, rig, meds.",
+      "templateId": "5df8ce05b11454561e39243b",
+      "cost": 1900,
+      "weight": 6,
+      "tier": "epic",
+      "kit": true,
+      "extras": [
+        {
+          "templateId": "6570254fcfc010a0f5006a22",
+          "count": 3
+        },
+        {
+          "templateId": "5e4abb5086f77406975c9342",
+          "count": 1
+        },
+        {
+          "templateId": "5c17a7ed2e2216152142459c",
+          "count": 1
+        },
+        {
+          "templateId": "5e4abfed86f77406a2713cf7",
+          "count": 1
+        },
+        {
+          "templateId": "545cdae64bdc2d39198b4568",
+          "count": 1
+        },
+        {
+          "templateId": "590c657e86f77412b013051d",
+          "count": 1
+        },
+        {
+          "templateId": "5d02797c86f774203f38e30a",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "nm_kit_heavy",
+      "name": "Heavy Loadout",
+      "description": "MCX-SPEAR, Gen4 full, Altyn, bag.",
+      "templateId": "65290f395ae2ae97b80fdf2d",
+      "cost": 2200,
+      "weight": 5,
+      "tier": "epic",
+      "kit": true,
+      "extras": [
+        {
+          "templateId": "6529243824cbe3c74a05e5c1",
+          "count": 120
+        },
+        {
+          "templateId": "5b44cd8b86f774503d30cba2",
+          "count": 1
+        },
+        {
+          "templateId": "5aa7e276e5b5b000171d0647",
+          "count": 1
+        },
+        {
+          "templateId": "5aa7e373e5b5b000137b76f0",
+          "count": 1
+        },
+        {
+          "templateId": "5b44c6ae86f7742d1627baea",
+          "count": 1
+        },
+        {
+          "templateId": "590c657e86f77412b013051d",
+          "count": 1
+        },
+        {
+          "templateId": "544fb3f34bdc2d03748b456a",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "nm_kit_cqb",
+      "name": "Close Quarters Loadout",
+      "description": "MP7A2, THOR, ULACH, rig, meds.",
+      "templateId": "5bd70322209c4d00d7167b8f",
+      "cost": 1300,
+      "weight": 9,
+      "tier": "rare",
+      "kit": true,
+      "extras": [
+        {
+          "templateId": "5ba26835d4351e0035628ff5",
+          "count": 120
+        },
+        {
+          "templateId": "609e8540d5c319764c2bc2e9",
+          "count": 1
+        },
+        {
+          "templateId": "5b40e1525acfc4771e1c6611",
+          "count": 1
+        },
+        {
+          "templateId": "5e4abfed86f77406a2713cf7",
+          "count": 1
+        },
+        {
+          "templateId": "590c678286f77426c9660122",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "nm_kit_budget",
+      "name": "Scav Runner Loadout",
+      "description": "Vityaz, THOR, bag, meds.",
+      "templateId": "59984ab886f7743e98271174",
+      "cost": 700,
+      "weight": 12,
+      "tier": "common",
+      "kit": true,
+      "extras": [
+        {
+          "templateId": "59e0d99486f7744a32234762",
+          "count": 60
+        },
+        {
+          "templateId": "609e8540d5c319764c2bc2e9",
+          "count": 1
+        },
+        {
+          "templateId": "5ca20d5986f774331e7c9602",
+          "count": 1
+        },
+        {
+          "templateId": "544fb45d4bdc2dee738b4568",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "nm_mystery_common",
+      "name": "Unmarked Crate",
+      "description": "Contents unknown until opened.",
+      "templateId": "",
+      "cost": 350,
+      "weight": 14,
+      "tier": "common",
+      "mystery": true,
+      "outcomeTier": "common"
+    },
+    {
+      "id": "nm_mystery_rare",
+      "name": "Sealed Crate",
+      "description": "Contents unknown until opened.",
+      "templateId": "",
+      "cost": 600,
+      "weight": 12,
+      "tier": "rare",
+      "mystery": true,
+      "outcomeTier": "rare"
+    },
+    {
+      "id": "nm_mystery_epic",
+      "name": "Black Crate",
+      "description": "Contents unknown until opened.",
+      "templateId": "",
+      "cost": 1000,
+      "weight": 7,
+      "tier": "epic",
+      "mystery": true,
+      "outcomeTier": "epic"
+    }
+  ]
+}

@@ -56,6 +56,22 @@ public class WeekendDropsRouter(JsonUtil jsonUtil, WeekendDropsCallback callback
             "/weekenddrops/depositgp",
             async (url, info, sessionId, output, cancellationToken) => await callback.DepositGp(sessionId, info.Id)
         ),
+        new RouteAction<EmptyRequestData>(
+            "/weekenddrops/nightmarket",
+            async (url, info, sessionId, output, cancellationToken) => await callback.GetNightMarket(sessionId)
+        ),
+        new RouteAction<StringIdRequest>(
+            "/weekenddrops/revealcard",
+            async (url, info, sessionId, output, cancellationToken) => await callback.RevealCard(sessionId, info.Id)
+        ),
+        new RouteAction<StringIdRequest>(
+            "/weekenddrops/buycard",
+            async (url, info, sessionId, output, cancellationToken) => await callback.BuyCard(sessionId, info.Id)
+        ),
+        new RouteAction<StringIdRequest>(
+            "/weekenddrops/deposittarcoin",
+            async (url, info, sessionId, output, cancellationToken) => await callback.DepositTarcoin(sessionId, info.Id)
+        ),
         new RouteAction<StringIdRequest>(
             "/weekenddrops/debug",
             async (url, info, sessionId, output, cancellationToken) => await callback.DebugAction(sessionId, info.Id)
@@ -125,7 +141,10 @@ public class WeekendDropsCallback(
     GpGiftService giftService,
     PersonalBestService records,
     SquadService squadService,
-    CollectionService collection)
+    CollectionService collection,
+    TarcoinLoot tarcoin,
+    TarcoinBalanceService tarcoinBalance,
+    NightMarketService nightMarket)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -222,6 +241,39 @@ public class WeekendDropsCallback(
         return new ValueTask<string>(httpResponseUtil.GetBody(json));
     }
 
+    public ValueTask<string> DepositTarcoin(MongoId sessionId, string countStr)
+    {
+        var rate = tarcoin.UnitsPerCoin;
+        int.TryParse(countStr, out int count);
+        bool ok = rate > 0 && count > 0;
+        int units = ok ? count * rate : 0;
+        if (ok) tarcoinBalance.Add(sessionId.ToString(), units);
+        var json = JsonSerializer.Serialize(new { result = ok, deposited = units, rate }, JsonOptions);
+        return new ValueTask<string>(httpResponseUtil.GetBody(json));
+    }
+
+    public ValueTask<string> GetNightMarket(MongoId sessionId)
+    {
+        var json = JsonSerializer.Serialize(nightMarket.ToDto(sessionId.ToString()), JsonOptions);
+        return new ValueTask<string>(httpResponseUtil.GetBody(json));
+    }
+
+    public ValueTask<string> RevealCard(MongoId sessionId, string indexStr)
+    {
+        int.TryParse(indexStr, out int index);
+        var result = nightMarket.Reveal(sessionId.ToString(), index);
+        var json = JsonSerializer.Serialize(new { result }, JsonOptions);
+        return new ValueTask<string>(httpResponseUtil.GetBody(json));
+    }
+
+    public ValueTask<string> BuyCard(MongoId sessionId, string indexStr)
+    {
+        int.TryParse(indexStr, out int index);
+        var result = nightMarket.Buy(sessionId.ToString(), index);
+        var json = JsonSerializer.Serialize(new { result }, JsonOptions);
+        return new ValueTask<string>(httpResponseUtil.GetBody(json));
+    }
+
     public ValueTask<string> GetCollection(MongoId sessionId)
     {
         var state = collection.GetState(sessionId.ToString());
@@ -268,6 +320,10 @@ public class WeekendDropsCallback(
         else if (action != null && action.StartsWith("contract_", StringComparison.OrdinalIgnoreCase))
         {
             result = contractService.DebugAction(sessionId, action.Substring("contract_".Length));
+        }
+        else if (action != null && action.StartsWith("market_", StringComparison.OrdinalIgnoreCase))
+        {
+            result = nightMarket.DebugAction(sessionId.ToString(), action.Substring("market_".Length));
         }
         else
         {

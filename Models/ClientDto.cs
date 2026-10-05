@@ -64,6 +64,14 @@ public class WeekendStateDto
     [JsonPropertyName("gpCoins")]
     public int GpCoins { get; set; }
 
+    [JsonPropertyName("tarcoins")]
+    public int Tarcoins { get; set; }
+
+    // 0 means TarCoin is unavailable (backport missing or disabled), which is what the
+    // client uses to decide whether to show the currency at all.
+    [JsonPropertyName("tarcoinRate")]
+    public int TarcoinRate { get; set; }
+
     [JsonPropertyName("scheduleText")]
     public string ScheduleText { get; set; } = "";
 

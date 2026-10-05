@@ -18,6 +18,8 @@ namespace WeekendDrops.Services;
 public class ContractService(
     MailSendService mailSendService,
     GpBalanceService gpBalance,
+    TarcoinBalanceService tarcoinBalance,
+    TarcoinLoot tarcoin,
     WeekendModifierService modifiers,
     CollectionService collection,
     ISptLogger<ContractService> logger)
@@ -351,6 +353,8 @@ public class ContractService(
                 if (rawDef is null) return false;
                 var def = Resolve(rawDef, state);
                 if (def.GpReward > 0) gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(def.GpReward)));
+                var tcDebug = tarcoin.ContractReward;
+                if (tcDebug > 0) tarcoinBalance.Add(sessionId.ToString(), tcDebug);
                 if (!string.IsNullOrEmpty(def.CrateTemplateId))
                     mailSendService.SendSystemMessageToPlayer(
                         sessionId, $"Contract complete: {def.Name}",
@@ -583,6 +587,9 @@ public class ContractService(
 
         if (def.GpReward > 0)
             gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(def.GpReward)));
+
+        var tcContract = tarcoin.ContractReward;
+        if (tcContract > 0) tarcoinBalance.Add(sessionId.ToString(), tcContract);
 
         if (!string.IsNullOrEmpty(def.CrateTemplateId))
             mailSendService.SendSystemMessageToPlayer(

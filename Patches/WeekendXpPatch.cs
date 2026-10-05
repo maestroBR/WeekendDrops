@@ -2,6 +2,7 @@ using HarmonyLib;
 using SPTarkov.Common.Models.Logging;
 using SPTarkov.Server.Core.Helpers.Profile;
 using SPTarkov.Server.Core.Models.Common;
+using SPTarkov.Server.Core.Models.Eft.Match;
 using SPTarkov.Server.Core.Models.Eft.Profile;
 using SPTarkov.Server.Core.Services.InRaid;
 using WeekendDrops.Services;
@@ -39,27 +40,45 @@ public static class WeekendXpPatch
 
     private static void Prefix(MongoId sessionId, SptProfile fullServerProfile, out long __state)
     {
-        __state = -1;
+        __state = NoState;
         try
         {
             if (_modifiers is null || _modifiers.XpMultiplier <= 1.0) return;
-            __state = fullServerProfile?.CharacterData?.PmcData?.Info?.Experience ?? -1;
+
+            var info = fullServerProfile?.CharacterData?.PmcData?.Info;
+            if (info is null)
+            {
+                _logger?.Warning("[WeekendDrops] XP modifier: no PMC info on the profile at raid end, skipping");
+                return;
+            }
+
+            __state = info.Experience ?? 0;
         }
-        catch { __state = -1; }
+        catch { __state = NoState; }
     }
 
-    private static void Postfix(MongoId sessionId, SptProfile fullServerProfile, long __state)
+    private static void Postfix(MongoId sessionId, SptProfile fullServerProfile,
+                                EndLocalRaidRequestData request, long __state)
     {
         try
         {
-            if (__state < 0 || _modifiers is null) return;
+            if (__state == NoState || _modifiers is null) return;
 
             double mult = _modifiers.XpMultiplier;
             if (mult <= 1.0) return;
 
-            long after = fullServerProfile?.CharacterData?.PmcData?.Info?.Experience ?? -1;
+            long after = fullServerProfile?.CharacterData?.PmcData?.Info?.Experience ?? 0;
             long gained = after - __state;
-            if (gained <= 0) return;
+
+            // another mod may rewrite Info.Experience itself, so fall back to what the client reported
+            if (gained <= 0)
+                gained = (long)(request?.Results?.Profile?.Stats?.Eft?.TotalSessionExperience ?? 0);
+
+            if (gained <= 0)
+            {
+                _logger?.Info($"[WeekendDrops] XP modifier active (x{mult:0.##}) but the raid paid no XP, nothing to top up");
+                return;
+            }
 
             int bonus = (int)Math.Round(gained * (mult - 1.0));
             if (bonus <= 0) return;
@@ -72,4 +91,6 @@ public static class WeekendXpPatch
             _logger?.Error($"[WeekendDrops] XP modifier failed: {ex.Message}", null);
         }
     }
+
+    private const long NoState = long.MinValue;
 }

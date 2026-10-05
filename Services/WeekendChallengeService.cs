@@ -35,6 +35,8 @@ public class WeekendChallengeService(
     GpGiftService giftService,
     WeekendModifierService modifiers,
     CollectionService collection,
+    TarcoinLoot tarcoin,
+    TarcoinBalanceService tarcoinBalance,
     ISptLogger<WeekendChallengeService> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -658,11 +660,19 @@ public class WeekendChallengeService(
         SendDropTier(sessionId, tier);
         if (tier.GpReward > 0)
             gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(tier.GpReward)));
+
+        // TarCoin is deliberately not run through the GP scalers: it is a flat premium
+        // payout, not something collection bonuses or weekend modifiers inflate.
+        var tcTier = tarcoin.TierReward;
+        if (tcTier > 0) tarcoinBalance.Add(sessionId.ToString(), tcTier);
+
         state.ClaimedTiers.Add(tier.RequiredChallenges);
         SaveState(sessionId, state);
 
         int totalPoints = state.Challenges.Sum(c => c.Definition?.Difficulty ?? 0);
-        logger.Info($"[WeekendDrops] Player {sessionId} claimed '{tier.TierName}' ({completedPoints}/{totalPoints} difficulty points done)");
+        logger.Info($"[WeekendDrops] Player {sessionId} claimed '{tier.TierName}' " +
+                    $"({completedPoints}/{totalPoints} difficulty points done)" +
+                    (tcTier > 0 ? $", +{tcTier} TC" : ""));
         return true;
     }
 
@@ -770,6 +780,8 @@ public class WeekendChallengeService(
         if (profile is null) return dto;
 
         dto.GpCoins = gpBalance.Get(sessionId.ToString());
+        dto.TarcoinRate = tarcoin.UnitsPerCoin;
+        dto.Tarcoins    = tarcoinBalance.Get(sessionId.ToString());
 
         dto.PendingGifts = giftService.TakePending(sessionId.ToString());
 
@@ -805,7 +817,7 @@ public class WeekendChallengeService(
     private DateTime _debugWeekendEnd = DateTime.MinValue;
     private const double DebugWeekendHours = 48;
 
-    private double GetSecondsUntilWeekendEnd()
+    public double GetSecondsUntilWeekendEnd()
     {
         if (_config.DebugMode)
         {

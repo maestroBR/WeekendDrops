@@ -21,6 +21,8 @@ public static class WeaponKitPatch
     private static bool _applied;
     private static readonly Random Rng = new();
 
+    internal static void EnsureHelper(ItemHelper itemHelper) => _itemHelper ??= itemHelper;
+
     private static readonly (string Prefix, double Chance)[] TargetSlots =
     {
         ("mod_scope",    0.55),
@@ -71,7 +73,8 @@ public static class WeaponKitPatch
         }
     }
 
-    private static void KitWeapon(List<Item> group, string modTier)
+    /// Also called by the night market so a card can hand over a built gun.
+    internal static void KitWeapon(List<Item> group, string modTier)
     {
         var hosts = group.ToList();
 

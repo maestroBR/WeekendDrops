@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using SysPath = System.IO.Path;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
@@ -26,6 +26,8 @@ public class WeekendDropsLoader(
     DailyChallengeService dailyChallengeService,
     ContractService contractService,
     CollectionService collectionService,
+    TarcoinLoot tarcoinLoot,
+    NightMarketService nightMarket,
     WeekendModifierService modifierService,
     ProfileHelper profileHelper,
     BotTable botTable,
@@ -43,10 +45,13 @@ public class WeekendDropsLoader(
         dailyChallengeService.LoadConfig();
         contractService.LoadConfig();
         collectionService.LoadConfig(WdPaths.ConfigDir);
+        nightMarket.LoadConfig();
 
         weekendChallengeService.RegisterLootContainerPools();
 
         weekendChallengeService.RegisterArenaShopPools();
+
+        tarcoinLoot.Inject();
 
         LootContainerAmmoStackPatch.Apply(itemHelper, logger);
 

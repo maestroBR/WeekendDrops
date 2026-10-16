@@ -2,7 +2,7 @@
 """Build and stage a clean distribution; never writes to the installed game."""
 from pathlib import Path
 import argparse, os, subprocess, shutil, zipfile, hashlib, json
-root = Path(__file__).resolve().parents[1]
+root = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
 parser.add_argument('--game-root', default=os.environ.get('WEEKEND_GAME_ROOT'))
 parser.add_argument('--original-archive', type=Path)
@@ -16,11 +16,11 @@ version = '1.0.8'
 def run(*command):
     subprocess.run(list(command), cwd=root, check=True)
 run(args.dotnet, 'build', 'WeekendDrops.csproj', '-c', 'Release', '-p:SptRoot=' + str(game / 'SPT_Runtime'))
-client = ['python3', 'client-audio/build-local.py', '--game-root', str(game), '--dotnet', args.dotnet]
+client = ['python3', 'development/client-audio/build-local.py', '--game-root', str(game), '--dotnet', args.dotnet]
 if args.original_archive:
     client += ['--original-archive', str(args.original_archive.resolve())]
 run(*client)
-run(args.dotnet, 'build', 'client-issues/Client.csproj', '-c', 'Release', '-p:GameRoot=' + str(game))
+run(args.dotnet, 'build', 'development/client-issues/Client.csproj', '-c', 'Release', '-p:GameRoot=' + str(game))
 stage = root / 'artifacts' / ('WeekendDrops-Continued-' + version)
 if stage.exists():
     shutil.rmtree(stage)
@@ -34,13 +34,13 @@ def copy(source, target):
 copy('bin/Release/WeekendDrops.dll', server / 'WeekendDrops.dll')
 shutil.copytree(root / 'config', server / 'config')
 shutil.copytree(root / 'db', server / 'db')
-copy('client-audio/bin/Release/WeekendDropsUI.dll', ui / 'WeekendDropsUI.dll')
-copy('client-layout/bin/Release/netstandard2.1/ProjectBrainiac.WeekendTextLayout.dll', ui / 'ProjectBrainiac.WeekendTextLayout.dll')
+copy('development/client-audio/bin/Release/WeekendDropsUI.dll', ui / 'WeekendDropsUI.dll')
+copy('development/client-layout/bin/Release/netstandard2.1/ProjectBrainiac.WeekendTextLayout.dll', ui / 'ProjectBrainiac.WeekendTextLayout.dll')
 copy('assets/icon.png', ui / 'icon.png')
-shutil.copytree(root / 'localization/locales', ui / 'locales')
+shutil.copytree(root / 'development/localization/locales', ui / 'locales')
 helper = stage / 'BepInEx/plugins/WeekendDrops.LocalizationFixes'
-copy('client-issues/bin/Release/netstandard2.1/WeekendDrops.LocalizationFixes.dll', helper / 'WeekendDrops.LocalizationFixes.dll')
-shutil.copytree(root / 'client-issues/locales', helper / 'locales')
+copy('development/client-issues/bin/Release/netstandard2.1/WeekendDrops.LocalizationFixes.dll', helper / 'WeekendDrops.LocalizationFixes.dll')
+shutil.copytree(root / 'development/client-issues/locales', helper / 'locales')
 for name in ['README.md', 'CHANGELOG.md', 'LICENSE']:
     copy(name, stage / name)
 manifest = {str(p.relative_to(stage)).replace('\\', '/'): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(stage.rglob('*')) if p.is_file()}

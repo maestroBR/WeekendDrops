@@ -4,19 +4,22 @@
 Directory.Build.local.props
 
 
-client-audio/.local/
+**/client-audio/.local/
 
 artifacts/
 *.user
 *.suo
 LOCAL-*.md
-localization/*review*.json
-localization/*audit*.json
-localization/review-matrix.csv
-localization/remaining-english-repairs.json
-localization/validation.json
+development/localization/*review*.json
+development/localization/*audit*.json
+development/localization/review-matrix.csv
+development/localization/remaining-english-repairs.json
+development/localization/validation.json
 
 WeekendDrops-local.code-workspace
 
 __pycache__/
 *.pyc
+
+.vscode/
+*.code-workspace

@@ -1,47 +1,51 @@
 # Weekend Drops Continued
 
-A maintained continuation of **Weekend Drops** by **20fpsguy**, with fixes for weapon rewards, schedules, currency handling, localization and client overhead. This repository remains a fork of the original project.
+A continuation of **Weekend Drops** by **20fpsguy**, maintained by **Project Brainiac**.
+
+Complete challenges and contracts, earn rewards, collect rare items, and spend GP and TarCoins in the shop and Night Market.
+
+## Download
+
+**[Download the latest version](https://github.com/maestroBR/WeekendDrops/releases/latest)** — select `WeekendDrops-Continued-1.0.8.zip` under Assets. You do not need the repository's **Code → Download ZIP** or GitHub's **Source code** archives to play.
 
 ## Requirements
 
-- SPT 4.1.x; builds and isolated tests in this release used SPT 4.1.6.
-- The client requires BigBrain, as does the original Weekend Drops UI. Keep a version compatible with your SPT installation.
-- Fika is optional. Multiplayer gameplay still needs validation with your complete mod setup.
-- Optional content referenced by your shop/market configuration must be installed separately.
+- **SPT 4.1.x** — this release was built and checked with SPT 4.1.6.
+- A compatible **BigBrain** installation.
+- Any optional item mods referenced by your customized shop or market configuration.
 
-## Install or update
+Fika is optional. Collection addons are separate downloads.
 
-1. Close the game and stop the SPT server.
-2. Back up `SPT_Runtime/user/mods/WeekendDrops`, the existing Weekend client folder and its BepInEx configuration.
-3. For updates, preserve your `data` directory, customized `config` files and custom bot definitions. The ZIP includes default configuration for clean installs; compare and merge it rather than overwriting your own settings.
-4. Extract the release ZIP into the SPT game root, where `BepInEx` and `SPT_Runtime` are located. The package includes a text-layout library and a localization companion required by this distribution.
-5. Remove the obsolete separate Weekend improvements/sound plugin if left over from an older installation. Its sound features have been replaced by integrated native sounds.
-6. Start the server and game. Open Weekend from its inventory tab; the default in-raid widget key is F7. Use F12 for the mod configuration.
+## Installation
 
-Both core components report **1.0.8** and retain the original loader GUID for compatibility. Collection addons and their GP bonuses are separate downloads, not included here.
+1. Close the game and stop the server.
+2. Extract the release ZIP into your SPT game folder, where `BepInEx` and `SPT_Runtime` are located.
+3. Start the server and game.
 
-## Included changes
+Open Weekend from its inventory tab. The default in-raid widget key is **F7**; use **F12** for configuration.
 
-- Complete weapon preset deliveries and static weapon images in the Night Market.
-- Kit extras on hover, with item icons, localized names and quantities.
-- Native game sounds integrated into the main UI DLL.
-- Seventeen language files and automatic game-language handling.
-- Calendar, concurrent update, currency overflow and saved-state protections.
-- Raid loot sampling reduced to twice per second, with a fresh extraction sample.
-- Experimental interactive 3D preview removed after a black rendering issue.
+## Updating
 
-See [CHANGELOG.md](CHANGELOG.md) for details and [validation notes](docs/VALIDATION.md) for test scope and limitations. No measured FPS gain is claimed.
+**Back up your Weekend folders first. Preserve your progression (`data`), customized configuration (`config`) and custom bot definitions.** The release includes defaults for clean installations; compare and merge them instead of overwriting your settings.
 
-## Troubleshooting and removal
+Remove the obsolete separate Weekend improvements/sound plugin if you still have it. Native sounds are included in the current client. Restart the game after updating DLLs.
 
-Check `BepInEx/LogOutput.log` for client errors and the SPT server logs for backend errors. Restart the client after replacing a DLL. Incorrect or unreadable balance/market files now produce explicit failures; recover them from a valid backup rather than deleting progression.
+## What's included in 1.0.8
 
-To uninstall, close both processes and remove the Weekend server/client folders and the bundled localization companion. Save your `data` and configuration first if you intend to reinstall. Existing collection addons may depend on Weekend and should be disabled separately.
+- Complete weapon rewards and static weapon images in the Night Market.
+- Kit contents on hover, with icons, names and quantities.
+- Native game sounds and 17 language files.
+- Schedule, reward, currency and saved-state fixes.
+- Fewer loot-value checks during raids. No measured FPS gain is claimed.
 
-## Development
+The experimental interactive 3D preview was removed. See [the changelog](CHANGELOG.md) for the complete update notes.
 
-Open `WeekendDrops.code-workspace` in VS Code or `WeekendDrops.slnx` in a compatible IDE. See [BUILDING.md](docs/BUILDING.md). Build scripts never deploy into a live game automatically. Game assemblies and the original mod UI are local build inputs, not committed dependencies.
+## Support
 
-## Credits and license
+Report issues with steps to reproduce, your SPT/Fika versions and relevant logs. Client logs are in `BepInEx/LogOutput.log`; backend errors appear in the SPT server logs. Actual gameplay, multiplayer behavior and translated layouts can vary with your mod setup.
 
-Original Weekend Drops: **20fpsguy**. Continued maintenance: **Project Brainiac**. SPT, BepInEx, Harmony, BigBrain and the original project's contributors provide the underlying platforms. Original copyright and MIT license are preserved in [LICENSE](LICENSE).
+## Credits
+
+Thank you, **20fpsguy**, for creating Weekend Drops and giving permission to continue the project. Original copyright and the [MIT license](LICENSE) are preserved. This repository remains a fork of the original project.
+
+Maintainers: source tools, tests and build documentation are grouped under [development](development/README.md).

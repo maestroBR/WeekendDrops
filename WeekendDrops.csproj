@@ -38,12 +38,13 @@
 
   <!-- Local tooling and generated test data must never become mod content. -->
   <ItemGroup>
-    <Content Remove="tests/**;tests-localization/**;tests-maintenance/**;tests-audio/**;client-audio/**;client-preview/**;client-issues/**;client-layout/**;localization/**;scripts/**;docs/**" />
-    <None Remove="tests/**;tests-localization/**;tests-maintenance/**;tests-audio/**;client-audio/**;client-preview/**;client-issues/**;client-layout/**;localization/**;scripts/**;docs/**" />
+    <Content Remove="development/**;tests/**;tests-localization/**;tests-maintenance/**;tests-audio/**;client-audio/**;client-preview/**;client-issues/**;client-layout/**;localization/**;scripts/**;docs/**" />
+    <None Remove="development/**;tests/**;tests-localization/**;tests-maintenance/**;tests-audio/**;client-audio/**;client-preview/**;client-issues/**;client-layout/**;localization/**;scripts/**;docs/**" />
   </ItemGroup>
 
   <!-- The cloned WTT-ContentBackport repo lives in-tree for reference only; never compile it. -->
   <ItemGroup>
+    <Compile Remove="development/**"/>
     <Compile Remove="tests/**"/>
     <Compile Remove="tests-audio/**"/>
     <Compile Remove="client-audio/**"/>

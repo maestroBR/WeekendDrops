@@ -28,5 +28,5 @@
   <Folder Name="/tests/">
     <Project Path="tests/Replay.csproj" />
   </Folder>
-  <Project Path="WeekendDrops.csproj" />
+  <Project Path="../WeekendDrops.csproj" />
 </Solution>

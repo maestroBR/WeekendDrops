@@ -16,7 +16,7 @@ static class Replay {
  using var globals=JsonDocument.Parse(File.ReadAllText(root+"globals.json"));
  var json=new JsonSerializerOptions();json.Converters.Add(new SPTarkov.Server.Core.Utils.Json.Converters.StringToMongoIdConverter());
  var presets=globals.RootElement.GetProperty("ItemPresets").EnumerateObject().Select(p=>p.Value.Deserialize<Preset>(json)!).ToList();
- using var pool=JsonDocument.Parse(File.ReadAllText(System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory,"../../../../config/night_market.json"))));
+ using var pool=JsonDocument.Parse(File.ReadAllText(System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory,"../../../../../config/night_market.json"))));
  var entries=pool.RootElement.GetProperty("pool").EnumerateArray().Where(x=>x.TryGetProperty("kit",out var k)&&k.GetBoolean()).ToList();
  var allIds=new HashSet<MongoId>();int checkedCount=0;
  foreach(var e in entries){

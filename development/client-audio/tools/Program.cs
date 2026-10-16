@@ -123,7 +123,7 @@ var checkedInstructions=module.Types.SelectMany(All).SelectMany(t=>t.Methods).Wh
 input.Name.Version=new Version(1,0,8,0);
 var plugin=module.GetType("WeekendDropsUI.Plugin").CustomAttributes.Single(a=>a.AttributeType.FullName=="BepInEx.BepInPlugin");
 plugin.ConstructorArguments[1]=new CustomAttributeArgument(module.TypeSystem.String,"Weekend Drops Continued");
-plugin.ConstructorArguments[2]=new CustomAttributeArgument(module.TypeSystem.String,"1.0.8");
+plugin.ConstructorArguments[2]=new CustomAttributeArgument(module.TypeSystem.String,"1.0.9");
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[2]))!);input.Write(args[2]);
 using var verified=AssemblyDefinition.ReadAssembly(args[2]);
 if(verified.MainModule.GetType(target.FullName)==null)throw new InvalidOperationException("Integrated type is missing");

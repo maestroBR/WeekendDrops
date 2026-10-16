@@ -12,7 +12,7 @@ if not args.game_root:
     parser.error('Set WEEKEND_GAME_ROOT or --game-root')
 game = Path(args.game_root).resolve()
 os.environ['WEEKEND_GAME_ROOT'] = str(game)
-version = '1.0.8'
+version = '1.0.9'
 def run(*command):
     subprocess.run(list(command), cwd=root, check=True)
 run(args.dotnet, 'build', 'WeekendDrops.csproj', '-c', 'Release', '-p:SptRoot=' + str(game / 'SPT_Runtime'))

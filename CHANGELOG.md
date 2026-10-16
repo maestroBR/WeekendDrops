@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.9 — 2026-10-16
+
+### Russian Translation Update
+- Improved Russian grammar, plural forms, and Tarkov terminology.
+- Corrected item names, boss names, and challenge descriptions.
+- Updated the Russian localization for the correction plugin.
+- No gameplay changes.
+
+Special thanks to **Praxideke** for reviewing and improving the Russian translation!
+
 ## 1.0.8 — 2026-10-16
 
 ### Night Market and shop

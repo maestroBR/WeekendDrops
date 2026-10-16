@@ -6,7 +6,7 @@ Complete challenges and contracts, earn rewards, collect rare items, and spend G
 
 ## Download
 
-**[Download the latest version](https://github.com/maestroBR/WeekendDrops/releases/latest)** — select `WeekendDrops-Continued-1.0.8.zip` under Assets. You do not need the repository's **Code → Download ZIP** or GitHub's **Source code** archives to play.
+**[Download the latest version](https://github.com/maestroBR/WeekendDrops/releases/latest)** — select `WeekendDrops-Continued-1.0.9.zip` under Assets. You do not need the repository's **Code → Download ZIP** or GitHub's **Source code** archives to play.
 
 ## Requirements
 
@@ -28,7 +28,14 @@ Open Weekend from its inventory tab. The default in-raid widget key is **F7**; u
 
 **Back up your Weekend folders first. Preserve your progression (`data`), customized configuration (`config`) and custom bot definitions.** The release includes defaults for clean installations; compare and merge them instead of overwriting your settings.
 
-## What's included in 1.0.8
+## What's new in 1.0.9
+
+- Improved Russian grammar, plural forms, item and boss names, and Tarkov terminology.
+- Synchronized the Russian correction-plugin localization.
+- Thanks to **Praxideke** for the Russian translation review ([PR #1](https://github.com/maestroBR/WeekendDrops/pull/1)).
+- No gameplay changes in this update.
+
+## Features introduced in 1.0.8
 
 - Complete weapon rewards and static weapon images in the Night Market.
 - Kit contents on hover, with icons, names and quantities.

@@ -28,8 +28,6 @@ Open Weekend from its inventory tab. The default in-raid widget key is **F7**; u
 
 **Back up your Weekend folders first. Preserve your progression (`data`), customized configuration (`config`) and custom bot definitions.** The release includes defaults for clean installations; compare and merge them instead of overwriting your settings.
 
-Remove the obsolete separate Weekend improvements/sound plugin if you still have it. Native sounds are included in the current client. Restart the game after updating DLLs.
-
 ## What's included in 1.0.8
 
 - Complete weapon rewards and static weapon images in the Night Market.

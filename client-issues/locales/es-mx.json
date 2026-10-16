@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "196-slot almacenamiento de objetos sueltos",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "Kit Médico de Campo",
+  "shop.handover_medical.desc": "Suministros médicos para un asalto, intercambiados por artículos de repuesto.",
+  "shop.handover_ammo.name": "Recarga de Cartuchos",
+  "shop.handover_ammo.desc": "Cartuchos para un asalto, intercambiados por artículos de repuesto.",
+  "shop.handover_provisions.name": "Provisiones de Campo",
+  "shop.handover_provisions.desc": "Alimentos y agua para un asalto, intercambiados por artículos de repuesto.",
+  "shop.handover_grenades.name": "Belt de Granadas",
+  "shop.handover_grenades.desc": "Un paquete de granadas, intercambiado por artículos de repuesto.",
+  "ui.weekday.0": "dom",
+  "ui.weekday.1": "lun",
+  "ui.weekday.2": "mar",
+  "ui.weekday.3": "mié",
+  "ui.weekday.4": "jue",
+  "ui.weekday.5": "vie",
+  "ui.weekday.6": "sáb"
+}

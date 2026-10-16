@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "196-slot szabad tárgy tároló",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "Térítő doboz",
+  "shop.handover_medical.desc": "Egy bevetéshez szükséges orvosi felszerelés, cserélhető kiegészítőkre.",
+  "shop.handover_ammo.name": "Térítő lőszer",
+  "shop.handover_ammo.desc": "Egy bevetéshez szükséges lőszer, cserélhető kiegészítőkre.",
+  "shop.handover_provisions.name": "Térítő élelmiszer",
+  "shop.handover_provisions.desc": "Egy bevetéshez szükséges élelmiszer és víz, cserélhető kiegészítőkre.",
+  "shop.handover_grenades.name": "Gránátcsípő",
+  "shop.handover_grenades.desc": "Gránátcsomag, cserélhető kiegészítőkre.",
+  "ui.weekday.0": "V",
+  "ui.weekday.1": "H",
+  "ui.weekday.2": "K",
+  "ui.weekday.3": "Sze",
+  "ui.weekday.4": "Cs",
+  "ui.weekday.5": "P",
+  "ui.weekday.6": "Szo"
+}

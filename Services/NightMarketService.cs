@@ -22,12 +22,14 @@ public class NightMarketService(
     TarcoinBalanceService tarcoinBalance,
     MailSendService mailSendService,
     ItemHelper itemHelper,
+    PresetHelper presetHelper,
     ISptLogger<NightMarketService> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly string _dataDir = WdPaths.DataDir;
     private readonly object _fileLock = new();
+    private readonly object _operationLock = new();
 
     private NightMarketConfig _config = new();
 
@@ -99,80 +101,97 @@ public class NightMarketService(
 
     public NightMarketState GetState(string sessionId)
     {
-        if (!IsOpen) return new NightMarketState();
+        lock (_operationLock)
+        {
+            if (!IsOpen) return new NightMarketState();
 
-        var state = Load(sessionId);
-        if (state is not null && state.MarketId == CurrentMarketId) return state;
+            var state = Load(sessionId);
+            if (state is not null && state.MarketId == CurrentMarketId) return state;
 
-        state = Roll(sessionId);
-        Save(sessionId, state);
-        return state;
+            state = Roll(sessionId);
+            Save(sessionId, state);
+            return state;
+        }
     }
 
     public string Reveal(string sessionId, int index)
     {
-        if (!IsOpen) return "closed";
+        lock (_operationLock)
+        {
+            if (!IsOpen) return "closed";
 
-        var state = GetState(sessionId);
-        if (index < 0 || index >= state.Cards.Count) return "no_such_card";
-        if (state.Cards[index].Revealed) return "ok";
+            var state = GetState(sessionId);
+            if (index < 0 || index >= state.Cards.Count) return "no_such_card";
+            if (state.Cards[index].Revealed) return "ok";
 
-        state.Cards[index].Revealed = true;
-        Save(sessionId, state);
-        return "ok";
+            state.Cards[index].Revealed = true;
+            Save(sessionId, state);
+            return "ok";
+        }
     }
 
     public string Buy(string sessionId, int index)
     {
-        if (!IsOpen) return "closed";
-
-        var state = GetState(sessionId);
-        if (index < 0 || index >= state.Cards.Count) return "no_such_card";
-
-        var card = state.Cards[index];
-        if (!card.Revealed) return "not_revealed";
-        if (card.Bought)    return "already_bought";
-
-        var entry = _config.Pool.FirstOrDefault(e => e.Id == card.EntryId);
-        if (entry is null)
+        lock (_operationLock)
         {
-            logger.Warning($"[WeekendDrops] Night market: card {card.EntryId} is no longer in the pool");
-            return "no_such_card";
-        }
+            if (!IsOpen) return "closed";
 
-        // Resolve a mystery card before charging, so a misconfigured one cannot take TC
-        // and hand back nothing.
-        var delivered = entry;
-        if (entry.Mystery)
-        {
-            var rolled = RollOutcome(entry);
-            if (rolled is null)
+            var state = GetState(sessionId);
+            if (index < 0 || index >= state.Cards.Count) return "no_such_card";
+
+            var card = state.Cards[index];
+            if (!card.Revealed) return "not_revealed";
+            if (card.Bought)    return "already_bought";
+
+            var entry = _config.Pool.FirstOrDefault(e => e.Id == card.EntryId);
+            if (entry is null)
             {
-                logger.Error($"[WeekendDrops] Night market: mystery card '{entry.Id}' has no valid outcomes");
+                logger.Warning($"[WeekendDrops] Night market: card {card.EntryId} is no longer in the pool");
                 return "no_such_card";
             }
-            delivered = rolled;
+
+            // Resolve a mystery card before charging, so a misconfigured one cannot take TC
+            // and hand back nothing.
+            var delivered = entry;
+            if (entry.Mystery)
+            {
+                var rolled = RollOutcome(entry);
+                if (rolled is null)
+                {
+                    logger.Error($"[WeekendDrops] Night market: mystery card '{entry.Id}' has no valid outcomes");
+                    return "no_such_card";
+                }
+                delivered = rolled;
+            }
+
+            List<Item> delivery;
+            try { delivery = BuildItems(delivered); }
+            catch (InvalidOperationException ex)
+            {
+                logger.Error($"[WeekendDrops] Night market delivery rejected for {delivered.Id}: {ex.Message}");
+                return "no_such_card";
+            }
+
+            if (!tarcoinBalance.TrySpend(sessionId, card.Cost)) return "insufficient_tarcoin";
+
+            // Mark bought before mailing: a card charged for but not delivered can be fixed by
+            // hand, a card delivered twice cannot.
+            card.Bought = true;
+            if (entry.Mystery) card.ResultEntryId = delivered.Id;
+            Save(sessionId, state);
+
+            mailSendService.SendSystemMessageToPlayer(
+                new MongoId(sessionId),
+                $"Night Market: {delivered.Name}",
+                delivery,
+                (long)TimeSpan.FromHours(weekend.Config.DropExpiryHours).TotalSeconds
+            );
+
+            logger.Info($"[WeekendDrops] Night market purchase: {entry.Name}" +
+                        (entry.Mystery ? $" -> {delivered.Name}" : "") +
+                        $" (-{card.Cost} TC, balance {tarcoinBalance.Get(sessionId)})");
+            return "ok";
         }
-
-        if (!tarcoinBalance.TrySpend(sessionId, card.Cost)) return "insufficient_tarcoin";
-
-        // Mark bought before mailing: a card charged for but not delivered can be fixed by
-        // hand, a card delivered twice cannot.
-        card.Bought = true;
-        if (entry.Mystery) card.ResultEntryId = delivered.Id;
-        Save(sessionId, state);
-
-        mailSendService.SendSystemMessageToPlayer(
-            new MongoId(sessionId),
-            $"Night Market: {delivered.Name}",
-            BuildItems(delivered),
-            (long)TimeSpan.FromHours(weekend.Config.DropExpiryHours).TotalSeconds
-        );
-
-        logger.Info($"[WeekendDrops] Night market purchase: {entry.Name}" +
-                    (entry.Mystery ? $" -> {delivered.Name}" : "") +
-                    $" (-{card.Cost} TC, balance {tarcoinBalance.Get(sessionId)})");
-        return "ok";
     }
 
     private List<NightMarketEntry> OutcomesFor(NightMarketEntry mystery)
@@ -201,108 +220,114 @@ public class NightMarketService(
 
     public NightMarketDto ToDto(string sessionId)
     {
-        var now = DateTime.Now;
-        var dto = new NightMarketDto
+        lock (_operationLock)
         {
-            Open         = IsOpen,
-            Tarcoins     = tarcoinBalance.Get(sessionId),
-            ScheduleText = NightMarketWindow.ScheduleText(_config.Schedule),
-            ForceOpen    = _forceOpen,
-        };
-
-        if (!IsOpen)
-        {
-            if (HasStock) dto.SecondsUntilOpen = NightMarketWindow.SecondsUntilOpen(_config.Schedule, now);
-            return dto;
-        }
-
-        var state = GetState(sessionId);
-        dto.MarketId = state.MarketId;
-        dto.SecondsRemaining = NightMarketWindow.SecondsUntilClose(_config.Schedule, now);
-
-        for (int i = 0; i < state.Cards.Count; i++)
-        {
-            var card = state.Cards[i];
-            var slot = new NightMarketCardDto
+            var now = DateTime.Now;
+            var dto = new NightMarketDto
             {
-                Index    = i,
-                Revealed = card.Revealed,
-                Bought   = card.Bought,
+                Open         = IsOpen,
+                Tarcoins     = tarcoinBalance.Get(sessionId),
+                ScheduleText = NightMarketWindow.ScheduleText(_config.Schedule),
+                ForceOpen    = _forceOpen,
             };
 
-            if (card.Revealed)
+            if (!IsOpen)
             {
-                var entry = _config.Pool.FirstOrDefault(e => e.Id == card.EntryId);
-                slot.Cost        = card.Cost;
-                slot.Tier        = entry?.Tier;
-                slot.Mystery     = entry?.Mystery ?? false;
-
-                // A mystery card sends its own blurb and no template until it is bought,
-                // then swaps to whatever it turned into.
-                var shown = slot.Mystery && card.ResultEntryId is not null
-                    ? _config.Pool.FirstOrDefault(e => e.Id == card.ResultEntryId)
-                    : entry;
-
-                bool hide = slot.Mystery && card.ResultEntryId is null;
-
-                slot.EntryId     = hide ? null : shown?.Id;
-                slot.Name        = shown?.Name ?? card.EntryId;
-                slot.Description = shown?.Description ?? "";
-                slot.TemplateId  = hide ? null : shown?.TemplateId;
-                slot.Kit         = !hide && (shown?.Kit ?? false);
-                slot.Extras      = hide ? null : shown?.Extras;
+                if (HasStock) dto.SecondsUntilOpen = NightMarketWindow.SecondsUntilOpen(_config.Schedule, now);
+                return dto;
             }
 
-            dto.Cards.Add(slot);
-        }
+            var state = GetState(sessionId);
+            dto.MarketId = state.MarketId;
+            dto.SecondsRemaining = NightMarketWindow.SecondsUntilClose(_config.Schedule, now);
 
-        return dto;
+            for (int i = 0; i < state.Cards.Count; i++)
+            {
+                var card = state.Cards[i];
+                var slot = new NightMarketCardDto
+                {
+                    Index    = i,
+                    Revealed = card.Revealed,
+                    Bought   = card.Bought,
+                };
+
+                if (card.Revealed)
+                {
+                    var entry = _config.Pool.FirstOrDefault(e => e.Id == card.EntryId);
+                    slot.Cost        = card.Cost;
+                    slot.Tier        = entry?.Tier;
+                    slot.Mystery     = entry?.Mystery ?? false;
+
+                    // A mystery card sends its own blurb and no template until it is bought,
+                    // then swaps to whatever it turned into.
+                    var shown = slot.Mystery && card.ResultEntryId is not null
+                        ? _config.Pool.FirstOrDefault(e => e.Id == card.ResultEntryId)
+                        : entry;
+
+                    bool hide = slot.Mystery && card.ResultEntryId is null;
+
+                    slot.EntryId     = hide ? null : shown?.Id;
+                    slot.Name        = shown?.Name ?? card.EntryId;
+                    slot.Description = shown?.Description ?? "";
+                    slot.TemplateId  = hide ? null : shown?.TemplateId;
+                    slot.Kit         = !hide && (shown?.Kit ?? false);
+                    slot.Extras      = hide ? null : shown?.Extras;
+                }
+
+                dto.Cards.Add(slot);
+            }
+
+            return dto;
+        }
     }
 
     public bool DebugAction(string sessionId, string? action)
     {
-        if (!weekend.Config.DebugMode)
+        lock (_operationLock)
         {
-            logger.Warning("[WeekendDrops] Night market debug action ignored - debugMode is off");
-            return false;
-        }
-
-        switch (action?.ToLowerInvariant())
-        {
-            case "forceopen":
-                _forceOpen = !_forceOpen;
-                logger.Info($"[WeekendDrops] Night market force-open: {_forceOpen}");
-                return true;
-
-            case "reroll":
-                // Bumping the roll id is enough: GetState rerolls whenever it does not match.
-                _debugRoll++;
-                if (!_forceOpen) DeleteState(sessionId);
-                logger.Info("[WeekendDrops] Night market rerolled");
-                return true;
-
-            case "revealall":
+            if (!weekend.Config.DebugMode)
             {
-                if (!IsOpen) return false;
-                var state = GetState(sessionId);
-                foreach (var c in state.Cards) c.Revealed = true;
-                Save(sessionId, state);
-                return true;
+                logger.Warning("[WeekendDrops] Night market debug action ignored - debugMode is off");
+                return false;
             }
 
-            case "grant":
-                tarcoinBalance.Add(sessionId, 1000);
-                logger.Info($"[WeekendDrops] Granted 1000 TC (balance {tarcoinBalance.Get(sessionId)})");
-                return true;
+            switch (action?.ToLowerInvariant())
+            {
+                case "forceopen":
+                    _forceOpen = !_forceOpen;
+                    logger.Info($"[WeekendDrops] Night market force-open: {_forceOpen}");
+                    return true;
 
-            case "clear":
-                DeleteState(sessionId);
-                logger.Info("[WeekendDrops] Night market state cleared");
-                return true;
+                case "reroll":
+                    // Bumping the roll id is enough: GetState rerolls whenever it does not match.
+                    _debugRoll++;
+                    if (!_forceOpen) DeleteState(sessionId);
+                    logger.Info("[WeekendDrops] Night market rerolled");
+                    return true;
 
-            default:
-                logger.Warning($"[WeekendDrops] Unknown night market debug action '{action}'");
-                return false;
+                case "revealall":
+                {
+                    if (!IsOpen) return false;
+                    var state = GetState(sessionId);
+                    foreach (var c in state.Cards) c.Revealed = true;
+                    Save(sessionId, state);
+                    return true;
+                }
+
+                case "grant":
+                    tarcoinBalance.Add(sessionId, 1000);
+                    logger.Info($"[WeekendDrops] Granted 1000 TC (balance {tarcoinBalance.Get(sessionId)})");
+                    return true;
+
+                case "clear":
+                    DeleteState(sessionId);
+                    logger.Info("[WeekendDrops] Night market state cleared");
+                    return true;
+
+                default:
+                    logger.Warning($"[WeekendDrops] Unknown night market debug action '{action}'");
+                    return false;
+            }
         }
     }
 
@@ -323,20 +348,24 @@ public class NightMarketService(
     {
         var items = new List<Item>();
 
-        var root = new Item
-        {
-            Id       = new MongoId(),
-            Template = new MongoId(entry.TemplateId),
-            ParentId = null,
-            SlotId   = "main",
-        };
-        if (entry.Count > 1) { root.Upd ??= new(); root.Upd.StackObjectsCount = entry.Count; }
-        items.Add(root);
-
-        if (entry.Kit && itemHelper.IsOfBaseclass(root.Template, BaseClasses.WEAPON))
+        var template = new MongoId(entry.TemplateId);
+        if (entry.Kit && itemHelper.IsOfBaseclass(template, BaseClasses.WEAPON))
         {
             WeaponKitPatch.EnsureHelper(itemHelper);
-            WeaponKitPatch.KitWeapon(items, entry.Tier);
+            for (int copy = 0; copy < Math.Max(1, entry.Count); copy++)
+            {
+                var preset = presetHelper.GetDefaultPreset(template)
+                    ?? throw new InvalidOperationException($"No complete default preset for {template}");
+                var weapon = NightMarketPresetTree.Prepare(preset.Items.ToList(), template);
+                WeaponKitPatch.KitWeapon(weapon, entry.Tier);
+                items.AddRange(weapon);
+            }
+        }
+        else
+        {
+            var root = new Item { Id = new MongoId(), Template = template, ParentId = null, SlotId = "main" };
+            if (entry.Count > 1) root.Upd = new() { StackObjectsCount = entry.Count };
+            items.Add(root);
         }
 
         foreach (var extra in entry.Extras)
@@ -402,12 +431,13 @@ public class NightMarketService(
             lock (_fileLock)
                 return File.Exists(path)
                     ? JsonSerializer.Deserialize<NightMarketState>(File.ReadAllText(path), JsonOptions)
+                      ?? throw new JsonException("Market state contains null")
                     : null;
         }
         catch (Exception ex)
         {
-            logger.Error($"[WeekendDrops] Could not read {SysPath.GetFileName(path)}: {ex.Message}. Rerolling.");
-            return null;
+            logger.Error($"[WeekendDrops] Could not read {SysPath.GetFileName(path)}: {ex.Message}. Keeping the file for recovery.");
+            throw new InvalidDataException("Unreadable market state; refusing to reroll purchased cards.", ex);
         }
     }
 
@@ -417,7 +447,7 @@ public class NightMarketService(
         {
             Directory.CreateDirectory(_dataDir);
             lock (_fileLock)
-                File.WriteAllText(StatePath(sessionId), JsonSerializer.Serialize(state, JsonOptions));
+                AtomicFile.WriteAllText(StatePath(sessionId), JsonSerializer.Serialize(state, JsonOptions));
         }
         catch (Exception ex)
         {

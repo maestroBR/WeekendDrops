@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
@@ -6,14 +6,14 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <RootNamespace>WeekendDrops</RootNamespace>
     <AssemblyName>WeekendDrops</AssemblyName>
-    <Version>1.0.7</Version>
-    <AssemblyVersion>1.0.7</AssemblyVersion>
-    <FileVersion>1.0.7</FileVersion>
-    <Authors>20fpsguy</Authors>
+    <Version>1.0.8</Version>
+    <AssemblyVersion>1.0.8</AssemblyVersion>
+    <FileVersion>1.0.8</FileVersion>
+    <Authors>20fpsguy; Project Brainiac</Authors>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(SptRoot)' == ''">
     <PackageReference Include="SPTarkov.Common" Version="4.1.0" />
     <PackageReference Include="SPTarkov.DI" Version="4.1.0" />
     <PackageReference Include="SPTarkov.Server.Core" Version="4.1.0" />
@@ -24,7 +24,8 @@
   <!-- Use the server's own Harmony (Private=false: don't copy, avoid version clash) -->
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>D:\SPT 4.1 dev\SPT_Runtime\0Harmony.dll</HintPath>
+
+      <HintPath Condition="'$(SptRoot)' != ''">$(SptRoot)/0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
@@ -35,8 +36,22 @@
     </None>
   </ItemGroup>
 
+  <!-- Local tooling and generated test data must never become mod content. -->
+  <ItemGroup>
+    <Content Remove="tests/**;tests-localization/**;tests-maintenance/**;tests-audio/**;client-audio/**;client-preview/**;client-issues/**;client-layout/**;localization/**;scripts/**;docs/**" />
+    <None Remove="tests/**;tests-localization/**;tests-maintenance/**;tests-audio/**;client-audio/**;client-preview/**;client-issues/**;client-layout/**;localization/**;scripts/**;docs/**" />
+  </ItemGroup>
+
   <!-- The cloned WTT-ContentBackport repo lives in-tree for reference only; never compile it. -->
   <ItemGroup>
+    <Compile Remove="tests/**"/>
+    <Compile Remove="tests-audio/**"/>
+    <Compile Remove="client-audio/**"/>
+    <Compile Remove="client-preview/**"/>
+    <Compile Remove="tests-maintenance/**"/>
+    <Compile Remove="tests-localization/**"/>
+    <Compile Remove="client-issues/**"/>
+    <Compile Remove="client-layout/**"/>
     <Compile Remove="Tarkov-1.0-Backport\**\*.cs" />
     <Content Remove="Tarkov-1.0-Backport\**" />
     <None Remove="Tarkov-1.0-Backport\**" />
@@ -51,36 +66,7 @@
     <EmbeddedResource Remove="SPT-DynamicMaps\**" />
   </ItemGroup>
 
-  <!-- deploy to SPT on build - copies DLL + content config files automatically.
-       config.json is the user-tunable settings file (debugMode etc.); it is NOT in
-       the blanket copy so a rebuild never clobbers the deployed settings. It's only
-       seeded when missing (fresh install). -->
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <MakeDir Directories="D:\SPT 4.1 dev\SPT_Runtime\user\mods\WeekendDrops\config" />
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="D:\SPT 4.1 dev\SPT_Runtime\user\mods\WeekendDrops" />
-    <!-- Debug builds emit these next to the dll; the Blazor host reads them to serve the mod
-         page. Release turns them off (see below), hence the Exists guard. -->
-    <ItemGroup>
-      <_WebAssets Include="$(TargetDir)$(AssemblyName).staticwebassets.*.json" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_WebAssets)" DestinationFolder="D:\SPT 4.1 dev\SPT_Runtime\user\mods\WeekendDrops"
-          Condition="'@(_WebAssets)' != ''" />
-    <ItemGroup>
-      <_ConfigFiles Include="$(ProjectDir)config\*.*" Exclude="$(ProjectDir)config\config.json" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_ConfigFiles)" DestinationFolder="D:\SPT 4.1 dev\SPT_Runtime\user\mods\WeekendDrops\config" />
-    <Copy SourceFiles="$(ProjectDir)config\config.json"
-          DestinationFolder="D:\SPT 4.1 dev\SPT_Runtime\user\mods\WeekendDrops\config"
-          Condition="!Exists('D:\SPT 4.1 dev\SPT_Runtime\user\mods\WeekendDrops\config\config.json')" />
-    <!-- Custom bot data. We read db\bots\types from the mod folder ourselves (see
-         WeekendDropsLoader.LoadContractBotTypes) and override the matching vanilla bot
-         type, so cursedassault.json lands at ...\WeekendDrops\db\bots\types\. -->
-    <ItemGroup>
-      <_BotFiles Include="$(ProjectDir)db\**\*.*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_BotFiles)"
-          DestinationFiles="@(_BotFiles->'D:\SPT 4.1 dev\SPT_Runtime\user\mods\WeekendDrops\db\%(RecursiveDir)%(Filename)%(Extension)')" />
-  </Target>
+  <!-- Building never writes to an installed game. Use the release archive to deploy. -->
 
   <!-- The razor pages compile into the assembly and MudBlazor comes from the server's own
        Blazor host, so a release ships one dll: no static-asset manifests, no deps file. -->
@@ -90,4 +76,15 @@
     <GenerateDependencyFile>false</GenerateDependencyFile>
     <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(SptRoot)' != ''">
+    <Reference Include="SPTarkov.Common" HintPath="$(SptRoot)/SPTarkov.Common.dll" Private="false"/>
+    <Reference Include="SPTarkov.DI" HintPath="$(SptRoot)/SPTarkov.DI.dll" Private="false"/>
+    <Reference Include="SPTarkov.Server.Core" HintPath="$(SptRoot)/SPTarkov.Server.Core.dll" Private="false"/>
+    <Reference Include="SPTarkov.Server.Web" HintPath="$(SptRoot)/SPTarkov.Server.Web.dll" Private="false"/>
+    <Reference Include="SemanticVersioning" HintPath="$(SptRoot)/SemanticVersioning.dll" Private="false"/>
+    <Reference Include="Spectre.Console.Ansi" HintPath="$(SptRoot)/Spectre.Console.Ansi.dll" Private="false"/>
+    <Reference Include="Spectre.Console" HintPath="$(SptRoot)/Spectre.Console.dll" Private="false"/>
+    <Reference Include="MudBlazor" HintPath="$(SptRoot)/MudBlazor.dll" Private="false"/>
+  </ItemGroup>
 </Project>

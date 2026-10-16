@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using SysPath = System.IO.Path;
@@ -188,40 +188,43 @@ public class WeekendChallengeService(
 
     public string RerollChallenge(MongoId sessionId, string challengeId)
     {
-        if (!_config.EnableWeekendReroll) return "disabled";
+        lock (_operationLock)
+        {
+            if (!_config.EnableWeekendReroll) return "disabled";
 
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return "not_found";
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return "not_found";
 
-        var state = GetOrCreateState(sessionId, profile);
+            var state = GetOrCreateState(sessionId, profile);
 
-        var cp = state.Challenges.FirstOrDefault(c => c.DefinitionId == challengeId);
-        if (cp is null) return "not_found";
+            var cp = state.Challenges.FirstOrDefault(c => c.DefinitionId == challengeId);
+            if (cp is null) return "not_found";
 
-        if (cp.Completed) return "already_done";
+            if (cp.Completed) return "already_done";
 
-        if (RerollsExhausted(state)) return "no_rerolls_left";
+            if (RerollsExhausted(state)) return "no_rerolls_left";
 
-        var def = _allChallenges.FirstOrDefault(d => d.Id == cp.DefinitionId);
-        if (def is null) return "not_found";
+            var def = _allChallenges.FirstOrDefault(d => d.Id == cp.DefinitionId);
+            if (def is null) return "not_found";
 
-        var pick = PickReplacement(state, def);
-        if (pick is null) return "no_replacement";
+            var pick = PickReplacement(state, def);
+            if (pick is null) return "no_replacement";
 
-        int cost = GetRerollCost(state);
-        if (!gpBalance.TrySpend(sessionId.ToString(), cost)) return "insufficient_gp";
+            int cost = GetRerollCost(state);
+            if (!gpBalance.TrySpend(sessionId.ToString(), cost)) return "insufficient_gp";
 
-        cp.DefinitionId = pick.Id;
-        cp.Target       = pick.Target;
-        cp.Current      = 0;
-        cp.Definition   = pick;
-        state.RerollsUsed++;
+            cp.DefinitionId = pick.Id;
+            cp.Target       = pick.Target;
+            cp.Current      = 0;
+            cp.Definition   = pick;
+            state.RerollsUsed++;
 
-        SaveState(sessionId, state);
-        logger.Info(
-            $"[WeekendDrops] Player {sessionId} rerolled '{def.Id}' -> '{pick.Id}' " +
-            $"(difficulty {pick.Difficulty}) for {cost} GP, {state.RerollsUsed} used this weekend");
-        return "ok";
+            SaveState(sessionId, state);
+            logger.Info(
+                $"[WeekendDrops] Player {sessionId} rerolled '{def.Id}' -> '{pick.Id}' " +
+                $"(difficulty {pick.Difficulty}) for {cost} GP, {state.RerollsUsed} used this weekend");
+            return "ok";
+        }
     }
 
     private ChallengeDefinition? PickReplacement(PlayerWeekendState state, ChallengeDefinition old)
@@ -400,51 +403,54 @@ public class WeekendChallengeService(
 
     public int ApplyRaidResult(MongoId sessionId, RaidResultRequest r)
     {
-        if (!_config.Enabled || !IsWeekendActive()) return 0;
-
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return 0;
-
-        var state = GetOrCreateState(sessionId, profile);
-
-        if (!string.IsNullOrEmpty(r.RaidId) && state.LastRaidId == r.RaidId)
+        lock (_operationLock)
         {
-            logger.Info($"[WeekendDrops] Raid {r.RaidId} already applied - ignoring duplicate report");
-            return 0;
+            if (!_config.Enabled || !IsWeekendActive()) return 0;
+
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return 0;
+
+            var state = GetOrCreateState(sessionId, profile);
+
+            if (!string.IsNullOrEmpty(r.RaidId) && state.LastRaidId == r.RaidId)
+            {
+                logger.Info($"[WeekendDrops] Raid {r.RaidId} already applied - ignoring duplicate report");
+                return 0;
+            }
+            state.LastRaidId = r.RaidId;
+
+            int pointsBefore = CompletedDifficultyPoints(state);
+
+            if (r.Survived) state.SurvivalTimeBank += r.SurvivedSeconds;
+            else            state.SurvivalTimeBank = 0;
+
+            int totalKills = r.ScavKills + r.PmcKills + r.BossKills + r.RaiderKills + r.RogueKills;
+
+            foreach (var cp in state.Challenges.Where(c => !c.Completed))
+            {
+                if (cp.Definition is null) continue;
+
+                cp.Current = ChallengeProgression.Advance(
+                    cp.Definition, cp.Current, cp.Target,
+                    r, state.SurvivalTimeBank, totalKills);
+            }
+
+            int pointsAfter = CompletedDifficultyPoints(state);
+            int gpEarned = _dropsConfig.Tiers
+                .Where(t => t.RequiredChallenges > pointsBefore && t.RequiredChallenges <= pointsAfter)
+                .Sum(t => t.GpReward);
+            if (gpEarned > 0)
+                logger.Info($"[WeekendDrops] Weekly tier GP earned this raid: +{gpEarned} (points {pointsBefore} to {pointsAfter})");
+
+            gpEarned += ApplyModifierPayout(sessionId, r);
+
+            SaveState(sessionId, state);
+
+            logger.Info($"[WeekendDrops] Weekly raid result applied (survived={r.Survived}, scavRaid={r.IsScavRaid}, " +
+                $"scav={r.ScavKills} pmc={r.PmcKills} boss={r.BossKills} hs={r.Headshots} nade={r.GrenadeKills}) - " +
+                string.Join(", ", state.Challenges.Select(c => $"{c.Definition?.Type}:{c.Current}/{c.Target}")));
+            return gpEarned;
         }
-        state.LastRaidId = r.RaidId;
-
-        int pointsBefore = CompletedDifficultyPoints(state);
-
-        if (r.Survived) state.SurvivalTimeBank += r.SurvivedSeconds;
-        else            state.SurvivalTimeBank = 0;
-
-        int totalKills = r.ScavKills + r.PmcKills + r.BossKills + r.RaiderKills + r.RogueKills;
-
-        foreach (var cp in state.Challenges.Where(c => !c.Completed))
-        {
-            if (cp.Definition is null) continue;
-
-            cp.Current = ChallengeProgression.Advance(
-                cp.Definition, cp.Current, cp.Target,
-                r, state.SurvivalTimeBank, totalKills);
-        }
-
-        int pointsAfter = CompletedDifficultyPoints(state);
-        int gpEarned = _dropsConfig.Tiers
-            .Where(t => t.RequiredChallenges > pointsBefore && t.RequiredChallenges <= pointsAfter)
-            .Sum(t => t.GpReward);
-        if (gpEarned > 0)
-            logger.Info($"[WeekendDrops] Weekly tier GP earned this raid: +{gpEarned} (points {pointsBefore} to {pointsAfter})");
-
-        gpEarned += ApplyModifierPayout(sessionId, r);
-
-        SaveState(sessionId, state);
-
-        logger.Info($"[WeekendDrops] Weekly raid result applied (survived={r.Survived}, scavRaid={r.IsScavRaid}, " +
-            $"scav={r.ScavKills} pmc={r.PmcKills} boss={r.BossKills} hs={r.Headshots} nade={r.GrenadeKills}) - " +
-            string.Join(", ", state.Challenges.Select(c => $"{c.Definition?.Type}:{c.Current}/{c.Target}")));
-        return gpEarned;
     }
 
     private int ApplyModifierPayout(MongoId sessionId, RaidResultRequest r)
@@ -480,6 +486,7 @@ public class WeekendChallengeService(
     public string GetCurrentWeekendId() => WeekendWindow.CurrentId(_config);
 
     private readonly object _fileLock = new();
+    private readonly object _operationLock = new();
 
     private PlayerWeekendState GetOrCreateState(MongoId sessionId, PmcData profile)
     {
@@ -525,7 +532,7 @@ public class WeekendChallengeService(
     {
         var json = JsonSerializer.Serialize(state, JsonOptions);
         lock (_fileLock)
-            File.WriteAllText(StatePath(sessionId), json);
+            AtomicFile.WriteAllText(StatePath(sessionId), json);
     }
 
     private string StatePath(MongoId sessionId) =>
@@ -533,15 +540,18 @@ public class WeekendChallengeService(
 
     public (int done, int total) GetWeeklyProgress(MongoId sessionId)
     {
-        try
+        lock (_operationLock)
         {
-            var path = StatePath(sessionId);
-            if (!File.Exists(path)) return (0, 0);
-            var state = JsonSerializer.Deserialize<PlayerWeekendState>(File.ReadAllText(path));
-            if (state is null || state.WeekendId != GetCurrentWeekendId()) return (0, 0);
-            return (state.Challenges.Count(c => c.Completed), state.Challenges.Count);
+            try
+            {
+                var path = StatePath(sessionId);
+                if (!File.Exists(path)) return (0, 0);
+                var state = JsonSerializer.Deserialize<PlayerWeekendState>(File.ReadAllText(path));
+                if (state is null || state.WeekendId != GetCurrentWeekendId()) return (0, 0);
+                return (state.Challenges.Count(c => c.Completed), state.Challenges.Count);
+            }
+            catch { return (0, 0); }
         }
-        catch { return (0, 0); }
     }
 
     private void AssignChallenges(PlayerWeekendState state)
@@ -631,49 +641,52 @@ public class WeekendChallengeService(
 
     public bool ClaimTier(MongoId sessionId, int requiredChallenges)
     {
-        if (!_config.Enabled || !IsWeekendActive()) return false;
-
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return false;
-
-        var tier = _dropsConfig.Tiers.FirstOrDefault(t => t.RequiredChallenges == requiredChallenges);
-        if (tier is null)
+        lock (_operationLock)
         {
-            logger.Warning($"[WeekendDrops] Claim rejected - no tier requires {requiredChallenges} points");
-            return false;
+            if (!_config.Enabled || !IsWeekendActive()) return false;
+
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return false;
+
+            var tier = _dropsConfig.Tiers.FirstOrDefault(t => t.RequiredChallenges == requiredChallenges);
+            if (tier is null)
+            {
+                logger.Warning($"[WeekendDrops] Claim rejected - no tier requires {requiredChallenges} points");
+                return false;
+            }
+
+            var state = GetOrCreateState(sessionId, profile);
+            int completedPoints = CompletedDifficultyPoints(state);
+
+            if (!_config.DebugMode && completedPoints < tier.RequiredChallenges)
+            {
+                logger.Warning($"[WeekendDrops] Claim rejected - {completedPoints}/{tier.RequiredChallenges} difficulty points done");
+                return false;
+            }
+            if (state.ClaimedTiers.Contains(tier.RequiredChallenges))
+            {
+                logger.Warning($"[WeekendDrops] Claim rejected - '{tier.TierName}' already claimed");
+                return false;
+            }
+
+            SendDropTier(sessionId, tier);
+            if (tier.GpReward > 0)
+                gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(tier.GpReward)));
+
+            // TarCoin is deliberately not run through the GP scalers: it is a flat premium
+            // payout, not something collection bonuses or weekend modifiers inflate.
+            var tcTier = tarcoin.TierReward;
+            if (tcTier > 0) tarcoinBalance.Add(sessionId.ToString(), tcTier);
+
+            state.ClaimedTiers.Add(tier.RequiredChallenges);
+            SaveState(sessionId, state);
+
+            int totalPoints = state.Challenges.Sum(c => c.Definition?.Difficulty ?? 0);
+            logger.Info($"[WeekendDrops] Player {sessionId} claimed '{tier.TierName}' " +
+                        $"({completedPoints}/{totalPoints} difficulty points done)" +
+                        (tcTier > 0 ? $", +{tcTier} TC" : ""));
+            return true;
         }
-
-        var state = GetOrCreateState(sessionId, profile);
-        int completedPoints = CompletedDifficultyPoints(state);
-
-        if (!_config.DebugMode && completedPoints < tier.RequiredChallenges)
-        {
-            logger.Warning($"[WeekendDrops] Claim rejected - {completedPoints}/{tier.RequiredChallenges} difficulty points done");
-            return false;
-        }
-        if (state.ClaimedTiers.Contains(tier.RequiredChallenges))
-        {
-            logger.Warning($"[WeekendDrops] Claim rejected - '{tier.TierName}' already claimed");
-            return false;
-        }
-
-        SendDropTier(sessionId, tier);
-        if (tier.GpReward > 0)
-            gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(tier.GpReward)));
-
-        // TarCoin is deliberately not run through the GP scalers: it is a flat premium
-        // payout, not something collection bonuses or weekend modifiers inflate.
-        var tcTier = tarcoin.TierReward;
-        if (tcTier > 0) tarcoinBalance.Add(sessionId.ToString(), tcTier);
-
-        state.ClaimedTiers.Add(tier.RequiredChallenges);
-        SaveState(sessionId, state);
-
-        int totalPoints = state.Challenges.Sum(c => c.Definition?.Difficulty ?? 0);
-        logger.Info($"[WeekendDrops] Player {sessionId} claimed '{tier.TierName}' " +
-                    $"({completedPoints}/{totalPoints} difficulty points done)" +
-                    (tcTier > 0 ? $", +{tcTier} TC" : ""));
-        return true;
     }
 
     private static int CompletedDifficultyPoints(PlayerWeekendState state) =>
@@ -681,47 +694,50 @@ public class WeekendChallengeService(
 
     public bool DebugAction(MongoId sessionId, string? action)
     {
-        if (!_config.DebugMode)
+        lock (_operationLock)
         {
-            logger.Warning("[WeekendDrops] Debug action ignored - debugMode is off");
-            return false;
-        }
-
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return false;
-
-        var state = GetOrCreateState(sessionId, profile);
-
-        switch (action?.ToLowerInvariant())
-        {
-            case "resetclaims":
-                state.ClaimedTiers.Clear();
-                break;
-            case "resetprogress":
-                state.ClaimedTiers.Clear();
-                foreach (var c in state.Challenges) c.Current = 0;
-                state.SurvivalTimeBank = 0;
-                break;
-            case "reroll":
-                state.ClaimedTiers.Clear();
-                state.SurvivalTimeBank = 0;
-                AssignChallenges(state);
-                break;
-            case "completeone":
-                var next = state.Challenges.FirstOrDefault(c => !c.Completed);
-                if (next is not null) next.Current = next.Target;
-                break;
-            case "completeall":
-                foreach (var c in state.Challenges) c.Current = c.Target;
-                break;
-            default:
-                logger.Warning($"[WeekendDrops] Unknown debug action '{action}'");
+            if (!_config.DebugMode)
+            {
+                logger.Warning("[WeekendDrops] Debug action ignored - debugMode is off");
                 return false;
-        }
+            }
 
-        SaveState(sessionId, state);
-        logger.Info($"[WeekendDrops] Debug action '{action}' applied for {sessionId}");
-        return true;
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return false;
+
+            var state = GetOrCreateState(sessionId, profile);
+
+            switch (action?.ToLowerInvariant())
+            {
+                case "resetclaims":
+                    state.ClaimedTiers.Clear();
+                    break;
+                case "resetprogress":
+                    state.ClaimedTiers.Clear();
+                    foreach (var c in state.Challenges) c.Current = 0;
+                    state.SurvivalTimeBank = 0;
+                    break;
+                case "reroll":
+                    state.ClaimedTiers.Clear();
+                    state.SurvivalTimeBank = 0;
+                    AssignChallenges(state);
+                    break;
+                case "completeone":
+                    var next = state.Challenges.FirstOrDefault(c => !c.Completed);
+                    if (next is not null) next.Current = next.Target;
+                    break;
+                case "completeall":
+                    foreach (var c in state.Challenges) c.Current = c.Target;
+                    break;
+                default:
+                    logger.Warning($"[WeekendDrops] Unknown debug action '{action}'");
+                    return false;
+            }
+
+            SaveState(sessionId, state);
+            logger.Info($"[WeekendDrops] Debug action '{action}' applied for {sessionId}");
+            return true;
+        }
     }
 
     private void SendDropTier(MongoId sessionId, DropTier tier)
@@ -762,56 +778,59 @@ public class WeekendChallengeService(
 
     public WeekendStateDto GetClientState(MongoId sessionId)
     {
-        bool active = IsWeekendActive();
-
-        var dto = new WeekendStateDto
+        lock (_operationLock)
         {
-            IsWeekendActive = active,
-            WeekendId = GetCurrentWeekendId(),
-            TimeRemainingSeconds = active ? GetSecondsUntilWeekendEnd() : 0,
-            TierThresholds = _dropsConfig.Tiers.Select(t => t.RequiredChallenges).ToList(),
-            TierGpRewards = _dropsConfig.Tiers.Select(t => t.GpReward).ToList(),
-            ScheduleText = GetWeekendScheduleText(),
-            DebugMode = _config.DebugMode,
-            Modifier = modifiers.ToDto()
-        };
+            bool active = IsWeekendActive();
 
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return dto;
+            var dto = new WeekendStateDto
+            {
+                IsWeekendActive = active,
+                WeekendId = GetCurrentWeekendId(),
+                TimeRemainingSeconds = active ? GetSecondsUntilWeekendEnd() : 0,
+                TierThresholds = _dropsConfig.Tiers.Select(t => t.RequiredChallenges).ToList(),
+                TierGpRewards = _dropsConfig.Tiers.Select(t => t.GpReward).ToList(),
+                ScheduleText = GetWeekendScheduleText(),
+                DebugMode = _config.DebugMode,
+                Modifier = modifiers.ToDto()
+            };
 
-        dto.GpCoins = gpBalance.Get(sessionId.ToString());
-        dto.TarcoinRate = tarcoin.UnitsPerCoin;
-        dto.Tarcoins    = tarcoinBalance.Get(sessionId.ToString());
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return dto;
 
-        dto.PendingGifts = giftService.TakePending(sessionId.ToString());
+            dto.GpCoins = gpBalance.Get(sessionId.ToString());
+            dto.TarcoinRate = tarcoin.UnitsPerCoin;
+            dto.Tarcoins    = tarcoinBalance.Get(sessionId.ToString());
 
-        if (!active) return dto;
+            dto.PendingGifts = giftService.TakePending(sessionId.ToString());
 
-        var state = GetOrCreateState(sessionId, profile);
+            if (!active) return dto;
 
-        dto.WeekendId = state.WeekendId;
-        dto.ClaimedTiers = state.ClaimedTiers;
-        dto.Challenges = state.Challenges.Select(cp => new ChallengeDto
-        {
-            Id = cp.DefinitionId,
-            Type = cp.Definition?.Type.ToString() ?? "",
-            Description = cp.Definition?.Description ?? cp.DefinitionId,
-            Current = cp.Current,
-            Target = cp.Target,
-            Completed = cp.Completed,
-            Difficulty = cp.Definition?.Difficulty ?? 1,
-            MinDistanceMeters = cp.Definition?.MinDistanceMeters ?? 0,
-            TargetWeaponClass = cp.Definition?.TargetWeaponClass ?? "",
-            TargetBoss        = cp.Definition?.TargetBoss ?? ""
-        }).ToList();
+            var state = GetOrCreateState(sessionId, profile);
 
-        dto.RerollEnabled   = _config.EnableWeekendReroll;
-        dto.RerollCost      = GetRerollCost(state);
-        dto.RerollsUsed     = state.RerollsUsed;
-        dto.RerollsMax      = _config.WeekendRerollMaxPerWeekend;
-        dto.RerollAvailable = _config.EnableWeekendReroll && !RerollsExhausted(state);
+            dto.WeekendId = state.WeekendId;
+            dto.ClaimedTiers = state.ClaimedTiers;
+            dto.Challenges = state.Challenges.Select(cp => new ChallengeDto
+            {
+                Id = cp.DefinitionId,
+                Type = cp.Definition?.Type.ToString() ?? "",
+                Description = cp.Definition?.Description ?? cp.DefinitionId,
+                Current = cp.Current,
+                Target = cp.Target,
+                Completed = cp.Completed,
+                Difficulty = cp.Definition?.Difficulty ?? 1,
+                MinDistanceMeters = cp.Definition?.MinDistanceMeters ?? 0,
+                TargetWeaponClass = cp.Definition?.TargetWeaponClass ?? "",
+                TargetBoss        = cp.Definition?.TargetBoss ?? ""
+            }).ToList();
 
-        return dto;
+            dto.RerollEnabled   = _config.EnableWeekendReroll;
+            dto.RerollCost      = GetRerollCost(state);
+            dto.RerollsUsed     = state.RerollsUsed;
+            dto.RerollsMax      = _config.WeekendRerollMaxPerWeekend;
+            dto.RerollAvailable = _config.EnableWeekendReroll && !RerollsExhausted(state);
+
+            return dto;
+        }
     }
 
     private DateTime _debugWeekendEnd = DateTime.MinValue;

@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "196 슬롯의 자유로운 아이템 보관소",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "Field Med Kit",
+  "shop.handover_medical.desc": "레이드용 의료용품, 교환용 부품으로 거래 가능합니다.",
+  "shop.handover_ammo.name": "총알 보충",
+  "shop.handover_ammo.desc": "레이드용 탄약, 교환용 부품으로 거래 가능합니다.",
+  "shop.handover_provisions.name": "전투 식량",
+  "shop.handover_provisions.desc": "레이드용 음식 및 물, 교환용 부품으로 거래 가능합니다.",
+  "shop.handover_grenades.name": "구형탄 지갑",
+  "shop.handover_grenades.desc": "그레네이드 팩, 교환용 부품으로 거래 가능합니다.",
+  "ui.weekday.0": "일",
+  "ui.weekday.1": "월",
+  "ui.weekday.2": "화",
+  "ui.weekday.3": "수",
+  "ui.weekday.4": "목",
+  "ui.weekday.5": "금",
+  "ui.weekday.6": "토"
+}

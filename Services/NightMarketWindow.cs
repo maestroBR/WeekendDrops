@@ -9,14 +9,14 @@ public static class NightMarketWindow
 {
     private static readonly DateTime Epoch = new(2024, 1, 1);
 
-    /// Start of the window covering `now`, or null when the market is shut. Yesterday is
-    /// checked too so a window can run past midnight.
+    /// Start of the window covering `now`, or null when the market is shut. Previous opening days are
+    /// checked too so configured windows can span multiple midnights.
     private static DateTime? OpenWindowStart(NightMarketSchedule s, DateTime now)
     {
         int dur  = Math.Max(1, s.DurationHours);
         int hour = ((s.StartHour % 24) + 24) % 24;
 
-        for (int back = 0; back <= 1; back++)
+        for (int back = 0; back <= Math.Min(7, (int)Math.Ceiling(dur / 24.0)); back++)
         {
             var start = now.Date.AddDays(-back).AddHours(hour);
             if (now < start || now >= start.AddHours(dur)) continue;

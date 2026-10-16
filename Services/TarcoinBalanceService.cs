@@ -34,14 +34,16 @@ public class TarcoinBalanceService
         if (amount <= 0) return;
         lock (_lock)
         {
-            _balances[sessionId] = (_balances.TryGetValue(sessionId, out var v) ? v : 0) + amount;
+            int nextBalance = checked((_balances.TryGetValue(sessionId, out var v) ? v : 0) + amount);
+            _balances[sessionId] = nextBalance;
             Save();
         }
     }
 
     public bool TrySpend(string sessionId, int amount)
     {
-        if (amount <= 0) return true;
+        if (amount < 0) return false;
+        if (amount == 0) return true;
         lock (_lock)
         {
             int cur = _balances.TryGetValue(sessionId, out var v) ? v : 0;
@@ -58,13 +60,12 @@ public class TarcoinBalanceService
         {
             if (File.Exists(_file))
                 _balances = JsonSerializer.Deserialize<Dictionary<string, int>>(
-                    File.ReadAllText(_file)) ?? new();
+                    File.ReadAllText(_file)) ?? throw new JsonException("Balance file contains null");
         }
         catch (Exception ex)
         {
-            _balances = new();
-            logger.Error($"[WeekendDrops] tarcoin_balances.json could not be read - every TarCoin balance " +
-                         $"reads as 0 until it is restored: {ex.Message}", null);
+            logger.Error($"[WeekendDrops] TarCoin balances could not be loaded. Refusing to replace existing balances: {ex.Message}", null);
+            throw new InvalidDataException("Restore the unreadable TarCoin balance file before retrying.", ex);
         }
     }
 
@@ -73,7 +74,7 @@ public class TarcoinBalanceService
         try
         {
             Directory.CreateDirectory(SysPath.GetDirectoryName(_file)!);
-            File.WriteAllText(_file, JsonSerializer.Serialize(_balances, JsonOptions));
+            AtomicFile.WriteAllText(_file, JsonSerializer.Serialize(_balances, JsonOptions));
         }
         catch (Exception ex)
         {

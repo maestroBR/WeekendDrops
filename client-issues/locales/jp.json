@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "196スロットの loose アイテム保管ケース",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "フィールドメディックキット",
+  "shop.handover_medical.desc": "レイド用の医療用品、交換用の備品で交換可能。",
+  "shop.handover_ammo.name": "弾薬補給",
+  "shop.handover_ammo.desc": "レイド用の弾薬、交換用の備品で交換可能。",
+  "shop.handover_provisions.name": "フィールドプロビジョン",
+  "shop.handover_provisions.desc": "レイド用の食料と水、交換用の備品で交換可能。",
+  "shop.handover_grenades.name": "グレネードベルト",
+  "shop.handover_grenades.desc": "グレネードパック、交換用の備品で交換可能。",
+  "ui.weekday.0": "日",
+  "ui.weekday.1": "月",
+  "ui.weekday.2": "火",
+  "ui.weekday.3": "水",
+  "ui.weekday.4": "木",
+  "ui.weekday.5": "金",
+  "ui.weekday.6": "土"
+}

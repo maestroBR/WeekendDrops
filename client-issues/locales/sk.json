@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "196-slotová uvoľnená uchovávacia krabica",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "Polievková súprava",
+  "shop.handover_medical.desc": "Zdravotné zásoby pre raid, obchodované za zásoby",
+  "shop.handover_ammo.name": "Nábojová doplnková súprava",
+  "shop.handover_ammo.desc": "Náboje pre raid, obchodované za zásoby",
+  "shop.handover_provisions.name": "Polievková súprava",
+  "shop.handover_provisions.desc": "Jedlo a voda pre raid, obchodované za zásoby",
+  "shop.handover_grenades.name": "Bunda granátov",
+  "shop.handover_grenades.desc": "Balenie granátov, obchodované za zásoby",
+  "ui.weekday.0": "ne",
+  "ui.weekday.1": "po",
+  "ui.weekday.2": "ut",
+  "ui.weekday.3": "st",
+  "ui.weekday.4": "št",
+  "ui.weekday.5": "pi",
+  "ui.weekday.6": "so"
+}

@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "Magazyn do 196 elementów wolnych",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "Paczka Medyczna",
+  "shop.handover_medical.desc": "Zbiórki medyczne do rajdu, wymienione za zapasowe przedmioty.",
+  "shop.handover_ammo.name": "Dopływ Amunicji",
+  "shop.handover_ammo.desc": "Amunicja do rajdu, wymieniona za zapasowe przedmioty.",
+  "shop.handover_provisions.name": "Zbiórki Żywieniowe",
+  "shop.handover_provisions.desc": "Żołędzie i woda do rajdu, wymienione za zapasowe przedmioty.",
+  "shop.handover_grenades.name": "Pojedynczy Pocisk",
+  "shop.handover_grenades.desc": "Paczka pocisków, wymieniona za zapasowe przedmioty.",
+  "ui.weekday.0": "niedz.",
+  "ui.weekday.1": "pon.",
+  "ui.weekday.2": "wt.",
+  "ui.weekday.3": "śr.",
+  "ui.weekday.4": "czw.",
+  "ui.weekday.5": "pt.",
+  "ui.weekday.6": "sob."
+}

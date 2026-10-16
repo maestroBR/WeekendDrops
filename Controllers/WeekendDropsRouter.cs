@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Server.Core.DI;
 using SPTarkov.Server.Core.Models.Common;
@@ -245,7 +245,7 @@ public class WeekendDropsCallback(
     {
         var rate = tarcoin.UnitsPerCoin;
         int.TryParse(countStr, out int count);
-        bool ok = rate > 0 && count > 0;
+        bool ok = rate > 0 && count > 0 && count <= int.MaxValue / rate;
         int units = ok ? count * rate : 0;
         if (ok) tarcoinBalance.Add(sessionId.ToString(), units);
         var json = JsonSerializer.Serialize(new { result = ok, deposited = units, rate }, JsonOptions);
@@ -260,7 +260,7 @@ public class WeekendDropsCallback(
 
     public ValueTask<string> RevealCard(MongoId sessionId, string indexStr)
     {
-        int.TryParse(indexStr, out int index);
+        if (!int.TryParse(indexStr, out int index)) index = -1;
         var result = nightMarket.Reveal(sessionId.ToString(), index);
         var json = JsonSerializer.Serialize(new { result }, JsonOptions);
         return new ValueTask<string>(httpResponseUtil.GetBody(json));
@@ -268,7 +268,7 @@ public class WeekendDropsCallback(
 
     public ValueTask<string> BuyCard(MongoId sessionId, string indexStr)
     {
-        int.TryParse(indexStr, out int index);
+        if (!int.TryParse(indexStr, out int index)) index = -1;
         var result = nightMarket.Buy(sessionId.ToString(), index);
         var json = JsonSerializer.Serialize(new { result }, JsonOptions);
         return new ValueTask<string>(httpResponseUtil.GetBody(json));

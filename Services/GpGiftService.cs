@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using SysPath = System.IO.Path;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Common.Models.Logging;
@@ -128,7 +128,7 @@ public class GpGiftService
         try
         {
             Directory.CreateDirectory(SysPath.GetDirectoryName(_file)!);
-            File.WriteAllText(_file, JsonSerializer.Serialize(_pending, JsonOptions));
+            AtomicFile.WriteAllText(_file, JsonSerializer.Serialize(_pending, JsonOptions));
         }
         catch (Exception ex)
         {

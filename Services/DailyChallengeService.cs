@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using SysPath = System.IO.Path;
 using SPTarkov.DI.Annotations;
@@ -108,109 +108,115 @@ public class DailyChallengeService(
 
     public int ApplyRaidResult(MongoId sessionId, RaidResultRequest r)
     {
-        if (_pool.Count == 0) return 0;
-
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return 0;
-
-        var state = GetOrCreateDailyState(sessionId, profile);
-        WireDefinitions(state);
-
-        if (!string.IsNullOrEmpty(r.RaidId) && state.LastRaidId == r.RaidId) return 0;
-        state.LastRaidId = r.RaidId;
-
-        if (r.Survived) state.SurvivalTimeBank += r.SurvivedSeconds;
-        else            state.SurvivalTimeBank = 0;
-
-        int totalKills = r.ScavKills + r.PmcKills + r.BossKills + r.RaiderKills + r.RogueKills;
-        int gpEarned = 0;
-
-        foreach (var cp in state.Challenges.Where(c => !c.Completed))
+        lock (_operationLock)
         {
-            if (cp.Definition is null) continue;
+            if (_pool.Count == 0) return 0;
 
-            cp.Current = ChallengeProgression.Advance(
-                cp.Definition, cp.Current, cp.Target,
-                r, state.SurvivalTimeBank, totalKills);
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return 0;
 
-            if (cp.Completed) gpEarned += cp.Definition.GpReward;
+            var state = GetOrCreateDailyState(sessionId, profile);
+            WireDefinitions(state);
+
+            if (!string.IsNullOrEmpty(r.RaidId) && state.LastRaidId == r.RaidId) return 0;
+            state.LastRaidId = r.RaidId;
+
+            if (r.Survived) state.SurvivalTimeBank += r.SurvivedSeconds;
+            else            state.SurvivalTimeBank = 0;
+
+            int totalKills = r.ScavKills + r.PmcKills + r.BossKills + r.RaiderKills + r.RogueKills;
+            int gpEarned = 0;
+
+            foreach (var cp in state.Challenges.Where(c => !c.Completed))
+            {
+                if (cp.Definition is null) continue;
+
+                cp.Current = ChallengeProgression.Advance(
+                    cp.Definition, cp.Current, cp.Target,
+                    r, state.SurvivalTimeBank, totalKills);
+
+                if (cp.Completed) gpEarned += cp.Definition.GpReward;
+            }
+
+            SaveDailyState(sessionId, state);
+            logger.Info($"[WeekendDrops] Daily raid result applied (survived={r.Survived}, gpEarned={gpEarned}) - " +
+                string.Join(", ", state.Challenges.Select(c => $"{c.Definition?.Type}:{c.Current}/{c.Definition?.Target ?? c.Target}")));
+            return gpEarned;
         }
-
-        SaveDailyState(sessionId, state);
-        logger.Info($"[WeekendDrops] Daily raid result applied (survived={r.Survived}, gpEarned={gpEarned}) - " +
-            string.Join(", ", state.Challenges.Select(c => $"{c.Definition?.Type}:{c.Current}/{c.Definition?.Target ?? c.Target}")));
-        return gpEarned;
     }
 
     public DailyStateDto GetDailyState(MongoId sessionId)
     {
-        CheckGlobalRestock();
-
-        var profile = profileHelper.GetPmcProfile(sessionId);
-
-        List<DailyChallengeProgress> challenges = [];
-        bool bonusClaimed = false;
-        var rerollState = new PlayerDailyState();
-        if (profile != null)
+        lock (_operationLock)
         {
-            var state = GetOrCreateDailyState(sessionId, profile);
-            WireDefinitions(state);
-            challenges = state.Challenges;
-            bonusClaimed = state.BonusClaimed;
-            rerollState = state;
-        }
+            CheckGlobalRestock();
 
-        return new DailyStateDto
-        {
-            Challenges = challenges.Select(cp => new DailyChallengeDto
+            var profile = profileHelper.GetPmcProfile(sessionId);
+
+            List<DailyChallengeProgress> challenges = [];
+            bool bonusClaimed = false;
+            var rerollState = new PlayerDailyState();
+            if (profile != null)
             {
-                Id            = cp.DefinitionId,
-                Type          = cp.Definition?.Type.ToString() ?? "",
-                Description   = cp.Definition?.Description ?? cp.DefinitionId,
-                Current       = cp.Current,
-                Target        = cp.Definition?.Target ?? cp.Target,
-                Completed     = cp.Completed,
-                GpReward      = cp.Definition?.GpReward ?? 0,
-                RewardClaimed = cp.RewardClaimed,
-                MinDistanceMeters = cp.Definition?.MinDistanceMeters ?? 0,
-                TargetWeaponClass = cp.Definition?.TargetWeaponClass ?? "",
-                TargetBoss        = cp.Definition?.TargetBoss ?? ""
-            }).ToList(),
-            ShopItems = _shopItems.Select(s => new ShopItemDto
+                var state = GetOrCreateDailyState(sessionId, profile);
+                WireDefinitions(state);
+                challenges = state.Challenges;
+                bonusClaimed = state.BonusClaimed;
+                rerollState = state;
+            }
+
+            return new DailyStateDto
             {
-                Id          = s.Id,
-                Name        = s.Name,
-                Description = s.Description,
-                GpCost      = EffectiveCost(s),
-                Stock       = s.Stock,
-                TemplateId  = s.TemplateId,
-                Contents    = s.Contents?.Select(c => new ShopContentDto
+                Challenges = challenges.Select(cp => new DailyChallengeDto
                 {
-                    TemplateId = c.TemplateId,
-                    Count      = c.Count
-                }).ToList() ?? [],
-                BarterCost  = s.BarterCost?.Select(c => new ShopContentDto
+                    Id            = cp.DefinitionId,
+                    Type          = cp.Definition?.Type.ToString() ?? "",
+                    Description   = cp.Definition?.Description ?? cp.DefinitionId,
+                    Current       = cp.Current,
+                    Target        = cp.Definition?.Target ?? cp.Target,
+                    Completed     = cp.Completed,
+                    GpReward      = cp.Definition?.GpReward ?? 0,
+                    RewardClaimed = cp.RewardClaimed,
+                    MinDistanceMeters = cp.Definition?.MinDistanceMeters ?? 0,
+                    TargetWeaponClass = cp.Definition?.TargetWeaponClass ?? "",
+                    TargetBoss        = cp.Definition?.TargetBoss ?? ""
+                }).ToList(),
+                ShopItems = _shopItems.Select(s => new ShopItemDto
                 {
-                    TemplateId = c.TemplateId,
-                    Count      = c.Count
-                }).ToList() ?? [],
-                RestockSeconds = _restockUntil.TryGetValue(s.Id, out var u) && u > DateTime.UtcNow
-                    ? (u - DateTime.UtcNow).TotalSeconds
+                    Id          = s.Id,
+                    Name        = s.Name,
+                    Description = s.Description,
+                    GpCost      = EffectiveCost(s),
+                    Stock       = s.Stock,
+                    TemplateId  = s.TemplateId,
+                    Contents    = s.Contents?.Select(c => new ShopContentDto
+                    {
+                        TemplateId = c.TemplateId,
+                        Count      = c.Count
+                    }).ToList() ?? [],
+                    BarterCost  = s.BarterCost?.Select(c => new ShopContentDto
+                    {
+                        TemplateId = c.TemplateId,
+                        Count      = c.Count
+                    }).ToList() ?? [],
+                    RestockSeconds = _restockUntil.TryGetValue(s.Id, out var u) && u > DateTime.UtcNow
+                        ? (u - DateTime.UtcNow).TotalSeconds
+                        : 0,
+                    Trophy = s.Trophy
+                }).ToList(),
+                NextResetSeconds = SecondsUntilMidnight(),
+                GlobalRestockSeconds = _nextGlobalRestock > DateTime.UtcNow
+                    ? (_nextGlobalRestock - DateTime.UtcNow).TotalSeconds
                     : 0,
-                Trophy = s.Trophy
-            }).ToList(),
-            NextResetSeconds = SecondsUntilMidnight(),
-            GlobalRestockSeconds = _nextGlobalRestock > DateTime.UtcNow
-                ? (_nextGlobalRestock - DateTime.UtcNow).TotalSeconds
-                : 0,
-            DailyBonusGp = BonusGp(challenges),
-            DailyBonusClaimed = bonusClaimed,
-            RerollEnabled = _config.EnableDailyReroll,
-            RerollAvailable = _config.EnableDailyReroll && !DailyRerollsExhausted(rerollState),
-            RerollCost = GetDailyRerollCost(rerollState),
-            RerollsUsed = rerollState.RerollsUsed,
-            RerollsMax = _config.DailyRerollMaxPerDay
-        };
+                DailyBonusGp = BonusGp(challenges),
+                DailyBonusClaimed = bonusClaimed,
+                RerollEnabled = _config.EnableDailyReroll,
+                RerollAvailable = _config.EnableDailyReroll && !DailyRerollsExhausted(rerollState),
+                RerollCost = GetDailyRerollCost(rerollState),
+                RerollsUsed = rerollState.RerollsUsed,
+                RerollsMax = _config.DailyRerollMaxPerDay
+            };
+        }
     }
 
     private static int BonusGp(IEnumerable<DailyChallengeProgress> challenges) =>
@@ -219,102 +225,115 @@ public class DailyChallengeService(
 
     public string ClaimDailyBonus(MongoId sessionId)
     {
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return "profile_not_found";
+        lock (_operationLock)
+        {
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return "profile_not_found";
 
-        var state = GetOrCreateDailyState(sessionId, profile);
-        WireDefinitions(state);
+            var state = GetOrCreateDailyState(sessionId, profile);
+            WireDefinitions(state);
 
-        if (state.Challenges.Count == 0)            return "no_challenges";
-        if (!state.Challenges.All(c => c.Completed)) return "not_completed";
-        if (state.BonusClaimed)                      return "already_claimed";
+            if (state.Challenges.Count == 0)            return "no_challenges";
+            if (!state.Challenges.All(c => c.Completed)) return "not_completed";
+            if (state.BonusClaimed)                      return "already_claimed";
 
-        int reward = BonusGp(state.Challenges);
-        if (reward <= 0) return "no_reward";
+            int reward = BonusGp(state.Challenges);
+            if (reward <= 0) return "no_reward";
 
-        gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(reward)));
-        state.BonusClaimed = true;
-        SaveDailyState(sessionId, state);
+            gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(reward)));
+            state.BonusClaimed = true;
+            SaveDailyState(sessionId, state);
 
-        logger.Info($"[WeekendDrops] Daily complete-all bonus: +{reward} GP credited for {sessionId} (balance {gpBalance.Get(sessionId.ToString())})");
-        return "ok";
+            logger.Info($"[WeekendDrops] Daily complete-all bonus: +{reward} GP credited for {sessionId} (balance {gpBalance.Get(sessionId.ToString())})");
+            return "ok";
+        }
     }
 
     public string ClaimDailyReward(MongoId sessionId, string challengeId)
     {
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return "profile_not_found";
+        lock (_operationLock)
+        {
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return "profile_not_found";
 
-        var state = GetOrCreateDailyState(sessionId, profile);
-        WireDefinitions(state);
+            var state = GetOrCreateDailyState(sessionId, profile);
+            WireDefinitions(state);
 
-        var cp = state.Challenges.FirstOrDefault(c => c.DefinitionId == challengeId);
-        if (cp is null)      return "challenge_not_found";
-        if (!cp.Completed)   return "not_completed";
-        if (cp.RewardClaimed) return "already_claimed";
+            var cp = state.Challenges.FirstOrDefault(c => c.DefinitionId == challengeId);
+            if (cp is null)      return "challenge_not_found";
+            if (!cp.Completed)   return "not_completed";
+            if (cp.RewardClaimed) return "already_claimed";
 
-        int reward = cp.Definition?.GpReward ?? 0;
-        if (reward <= 0) return "no_reward";
+            int reward = cp.Definition?.GpReward ?? 0;
+            if (reward <= 0) return "no_reward";
 
-        gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(reward)));
+            gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(reward)));
 
-        cp.RewardClaimed = true;
-        SaveDailyState(sessionId, state);
+            cp.RewardClaimed = true;
+            SaveDailyState(sessionId, state);
 
-        logger.Info($"[WeekendDrops] Daily reward: +{reward} GP credited for '{challengeId}' by {sessionId} (balance {gpBalance.Get(sessionId.ToString())})");
-        return "ok";
+            logger.Info($"[WeekendDrops] Daily reward: +{reward} GP credited for '{challengeId}' by {sessionId} (balance {gpBalance.Get(sessionId.ToString())})");
+            return "ok";
+        }
     }
 
     public string BuyShopItem(MongoId sessionId, string itemId)
     {
-        var shopItem = _shopItems.FirstOrDefault(s => s.Id == itemId);
-        if (shopItem is null)    return "item_not_found";
-        if (shopItem.BarterCost is { Count: > 0 }) return "not_for_sale";
-        if (shopItem.Stock == 0) return "out_of_stock";
-
-        if (_restockUntil.TryGetValue(itemId, out var until) && DateTime.UtcNow < until)
-            return "restocking";
-
-        int cost = EffectiveCost(shopItem);
-        if (!gpBalance.TrySpend(sessionId.ToString(), cost))
-            return "insufficient_gp";
-
-        mailSendService.SendSystemMessageToPlayer(
-            sessionId,
-            $"GP Shop Purchase: {shopItem.Name}",
-            BuildShopRewardItems(shopItem),
-            (long)TimeSpan.FromHours(_config.DropExpiryHours).TotalSeconds
-        );
-
-        if (shopItem.Stock > 0) { shopItem.Stock--; SaveShopStock(); }
-
-        double restockHours = shopItem.RestockHours ?? _config.ShopRestockHours;
-        if (restockHours > 0)
+        lock (_operationLock)
         {
-            _restockUntil[itemId] = DateTime.UtcNow.AddHours(restockHours);
-            SaveRestockState();
-        }
+            var shopItem = _shopItems.FirstOrDefault(s => s.Id == itemId);
+            if (shopItem is null)    return "item_not_found";
+            if (shopItem.BarterCost is { Count: > 0 }) return "not_for_sale";
+            if (shopItem.Stock == 0) return "out_of_stock";
 
-        logger.Info($"[WeekendDrops] Shop purchase: {shopItem.Name} (-{cost} GP, " +
-                    $"balance {gpBalance.Get(sessionId.ToString())}). Restock in {restockHours}h");
-        return "ok";
+            if (_restockUntil.TryGetValue(itemId, out var until) && DateTime.UtcNow < until)
+                return "restocking";
+
+            var delivery = BuildShopRewardItems(shopItem);
+            int cost = EffectiveCost(shopItem);
+            if (!gpBalance.TrySpend(sessionId.ToString(), cost))
+                return "insufficient_gp";
+
+            mailSendService.SendSystemMessageToPlayer(
+                sessionId,
+                $"GP Shop Purchase: {shopItem.Name}",
+                delivery,
+                (long)TimeSpan.FromHours(_config.DropExpiryHours).TotalSeconds
+            );
+
+            if (shopItem.Stock > 0) { shopItem.Stock--; SaveShopStock(); }
+
+            double restockHours = shopItem.RestockHours ?? _config.ShopRestockHours;
+            if (restockHours > 0)
+            {
+                _restockUntil[itemId] = DateTime.UtcNow.AddHours(restockHours);
+                SaveRestockState();
+            }
+
+            logger.Info($"[WeekendDrops] Shop purchase: {shopItem.Name} (-{cost} GP, " +
+                        $"balance {gpBalance.Get(sessionId.ToString())}). Restock in {restockHours}h");
+            return "ok";
+        }
     }
 
     public string RedeemBarter(MongoId sessionId, string itemId)
     {
-        var entry = _shopItems.FirstOrDefault(s => s.Id == itemId);
-        if (entry is null)                          return "item_not_found";
-        if (entry.BarterCost is not { Count: > 0 }) return "not_a_barter";
+        lock (_operationLock)
+        {
+            var entry = _shopItems.FirstOrDefault(s => s.Id == itemId);
+            if (entry is null)                          return "item_not_found";
+            if (entry.BarterCost is not { Count: > 0 }) return "not_a_barter";
 
-        mailSendService.SendSystemMessageToPlayer(
-            sessionId,
-            $"Trade-in: {entry.Name}",
-            BuildShopRewardItems(entry),
-            (long)TimeSpan.FromHours(_config.DropExpiryHours).TotalSeconds
-        );
+            mailSendService.SendSystemMessageToPlayer(
+                sessionId,
+                $"Trade-in: {entry.Name}",
+                BuildShopRewardItems(entry),
+                (long)TimeSpan.FromHours(_config.DropExpiryHours).TotalSeconds
+            );
 
-        logger.Info($"[WeekendDrops] Trade-in redeemed: {entry.Name}");
-        return "ok";
+            logger.Info($"[WeekendDrops] Trade-in redeemed: {entry.Name}");
+            return "ok";
+        }
     }
 
     private int EffectiveCost(ShopItemDefinition item)
@@ -324,6 +343,7 @@ public class DailyChallengeService(
     }
 
     private readonly object _fileLock = new();
+    private readonly object _operationLock = new();
 
     private PlayerDailyState GetOrCreateDailyState(MongoId sessionId, PmcData profile)
     {
@@ -402,7 +422,7 @@ public class DailyChallengeService(
     {
         var json = JsonSerializer.Serialize(state, JsonOptions);
         lock (_fileLock)
-            File.WriteAllText(DailyStatePath(sessionId), json);
+            AtomicFile.WriteAllText(DailyStatePath(sessionId), json);
     }
 
     private string DailyStatePath(MongoId sessionId) =>
@@ -446,38 +466,41 @@ public class DailyChallengeService(
 
     public string RerollDailyChallenge(MongoId sessionId, string challengeId)
     {
-        if (!_config.EnableDailyReroll) return "disabled";
+        lock (_operationLock)
+        {
+            if (!_config.EnableDailyReroll) return "disabled";
 
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return "not_found";
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return "not_found";
 
-        var state = GetOrCreateDailyState(sessionId, profile);
-        WireDefinitions(state);
+            var state = GetOrCreateDailyState(sessionId, profile);
+            WireDefinitions(state);
 
-        var cp = state.Challenges.FirstOrDefault(c => c.DefinitionId == challengeId);
-        if (cp is null) return "not_found";
-        if (cp.Completed) return "already_done";
-        if (DailyRerollsExhausted(state)) return "no_rerolls_left";
+            var cp = state.Challenges.FirstOrDefault(c => c.DefinitionId == challengeId);
+            if (cp is null) return "not_found";
+            if (cp.Completed) return "already_done";
+            if (DailyRerollsExhausted(state)) return "no_rerolls_left";
 
-        var pick = PickDailyReplacement(state, cp.DefinitionId);
-        if (pick is null) return "no_replacement";
+            var pick = PickDailyReplacement(state, cp.DefinitionId);
+            if (pick is null) return "no_replacement";
 
-        int cost = GetDailyRerollCost(state);
-        if (!gpBalance.TrySpend(sessionId.ToString(), cost)) return "insufficient_gp";
+            int cost = GetDailyRerollCost(state);
+            if (!gpBalance.TrySpend(sessionId.ToString(), cost)) return "insufficient_gp";
 
-        cp.DefinitionId  = pick.Id;
-        cp.Target        = pick.Target;
-        cp.Current       = 0;
-        cp.RewardClaimed = false;
-        cp.Definition    = pick;
-        state.RerollsUsed++;
+            cp.DefinitionId  = pick.Id;
+            cp.Target        = pick.Target;
+            cp.Current       = 0;
+            cp.RewardClaimed = false;
+            cp.Definition    = pick;
+            state.RerollsUsed++;
 
-        state.BonusClaimed = false;
+            state.BonusClaimed = false;
 
-        SaveDailyState(sessionId, state);
-        logger.Info($"[WeekendDrops] Player {sessionId} rerolled daily '{challengeId}' -> '{pick.Id}' " +
-                    $"for {cost} GP, {state.RerollsUsed} used today");
-        return "ok";
+            SaveDailyState(sessionId, state);
+            logger.Info($"[WeekendDrops] Player {sessionId} rerolled daily '{challengeId}' -> '{pick.Id}' " +
+                        $"for {cost} GP, {state.RerollsUsed} used today");
+            return "ok";
+        }
     }
 
     private DailyChallengeDefinition? PickDailyReplacement(PlayerDailyState state, string oldId)
@@ -501,77 +524,86 @@ public class DailyChallengeService(
 
     public bool DebugAction(MongoId sessionId, string action)
     {
-        if (!_config.DebugMode)
+        lock (_operationLock)
         {
-            logger.Warning("[WeekendDrops] Daily debug action ignored - debugMode is off");
-            return false;
-        }
-
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return false;
-
-        var state = GetOrCreateDailyState(sessionId, profile);
-        WireDefinitions(state);
-
-        switch (action?.ToLowerInvariant())
-        {
-            case "completeone":
-                var next = state.Challenges.FirstOrDefault(c => !c.Completed);
-                if (next is not null) next.Current = next.Target;
-                break;
-            case "completeall":
-                foreach (var c in state.Challenges) c.Current = c.Target;
-                break;
-            case "resetprogress":
-                foreach (var c in state.Challenges) { c.Current = 0; c.RewardClaimed = false; }
-                state.SurvivalTimeBank = 0;
-                state.BonusClaimed = false;
-                break;
-            case "reroll":
-                AssignDailyChallenges(state);
-                state.SurvivalTimeBank = 0;
-                state.BonusClaimed = false;
-                break;
-            default:
-                logger.Warning($"[WeekendDrops] Unknown daily debug action '{action}'");
+            if (!_config.DebugMode)
+            {
+                logger.Warning("[WeekendDrops] Daily debug action ignored - debugMode is off");
                 return false;
-        }
+            }
 
-        SaveDailyState(sessionId, state);
-        logger.Info($"[WeekendDrops] Daily debug action '{action}' applied for {sessionId}");
-        return true;
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return false;
+
+            var state = GetOrCreateDailyState(sessionId, profile);
+            WireDefinitions(state);
+
+            switch (action?.ToLowerInvariant())
+            {
+                case "completeone":
+                    var next = state.Challenges.FirstOrDefault(c => !c.Completed);
+                    if (next is not null) next.Current = next.Target;
+                    break;
+                case "completeall":
+                    foreach (var c in state.Challenges) c.Current = c.Target;
+                    break;
+                case "resetprogress":
+                    foreach (var c in state.Challenges) { c.Current = 0; c.RewardClaimed = false; }
+                    state.SurvivalTimeBank = 0;
+                    state.BonusClaimed = false;
+                    break;
+                case "reroll":
+                    AssignDailyChallenges(state);
+                    state.SurvivalTimeBank = 0;
+                    state.BonusClaimed = false;
+                    break;
+                default:
+                    logger.Warning($"[WeekendDrops] Unknown daily debug action '{action}'");
+                    return false;
+            }
+
+            SaveDailyState(sessionId, state);
+            logger.Info($"[WeekendDrops] Daily debug action '{action}' applied for {sessionId}");
+            return true;
+        }
     }
 
     public void ResetDailyProgress(MongoId sessionId)
     {
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return;
-
-        var state = GetOrCreateDailyState(sessionId, profile);
-        WireDefinitions(state);
-
-        foreach (var c in state.Challenges)
+        lock (_operationLock)
         {
-            c.Current = 0;
-            c.RewardClaimed = false;
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return;
+
+            var state = GetOrCreateDailyState(sessionId, profile);
+            WireDefinitions(state);
+
+            foreach (var c in state.Challenges)
+            {
+                c.Current = 0;
+                c.RewardClaimed = false;
+            }
+            state.SurvivalTimeBank = 0;
+            state.BonusClaimed = false;
+            SaveDailyState(sessionId, state);
+            logger.Info($"[WeekendDrops] Debug: daily progress reset for {sessionId}");
         }
-        state.SurvivalTimeBank = 0;
-        state.BonusClaimed = false;
-        SaveDailyState(sessionId, state);
-        logger.Info($"[WeekendDrops] Debug: daily progress reset for {sessionId}");
     }
 
     public void RerollDaily(MongoId sessionId)
     {
-        var profile = profileHelper.GetPmcProfile(sessionId);
-        if (profile is null) return;
+        lock (_operationLock)
+        {
+            var profile = profileHelper.GetPmcProfile(sessionId);
+            if (profile is null) return;
 
-        var state = GetOrCreateDailyState(sessionId, profile);
-        AssignDailyChallenges(state);
-        state.SurvivalTimeBank = 0;
-        state.BonusClaimed = false;
-        SaveDailyState(sessionId, state);
-        logger.Info($"[WeekendDrops] Debug: daily set rerolled for {sessionId}");
+            var state = GetOrCreateDailyState(sessionId, profile);
+            AssignDailyChallenges(state);
+            state.SurvivalTimeBank = 0;
+            state.BonusClaimed = false;
+            SaveDailyState(sessionId, state);
+            logger.Info($"[WeekendDrops] Debug: daily set rerolled for {sessionId}");
+        }
     }
 
     private static List<Item> BuildShopRewardItems(ShopItemDefinition shop)
@@ -638,7 +670,7 @@ public class DailyChallengeService(
         try
         {
             var json = JsonSerializer.Serialize(_restockUntil, JsonOptions);
-            File.WriteAllText(RestockStatePath, json);
+            AtomicFile.WriteAllText(RestockStatePath, json);
         }
         catch (Exception ex)
         {
@@ -683,7 +715,7 @@ public class DailyChallengeService(
         try
         {
             var json = JsonSerializer.Serialize(new GlobalRestockState { NextRestock = _nextGlobalRestock }, JsonOptions);
-            File.WriteAllText(GlobalRestockPath, json);
+            AtomicFile.WriteAllText(GlobalRestockPath, json);
         }
         catch (Exception ex)
         {
@@ -717,7 +749,7 @@ public class DailyChallengeService(
         try
         {
             var map = _shopItems.ToDictionary(s => s.Id, s => s.Stock);
-            File.WriteAllText(ShopStockPath, JsonSerializer.Serialize(map, JsonOptions));
+            AtomicFile.WriteAllText(ShopStockPath, JsonSerializer.Serialize(map, JsonOptions));
         }
         catch (Exception ex)
         {

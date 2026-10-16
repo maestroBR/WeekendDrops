@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "196-ячеечный контейнер для предметов",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "Полевой медицинский набор",
+  "shop.handover_medical.desc": "Медицинские припасы для рейда, получаемые по обмену.",
+  "shop.handover_ammo.name": "Пополнение боезапаса",
+  "shop.handover_ammo.desc": "Боеприпасы для рейда, получаемые по обмену.",
+  "shop.handover_provisions.name": "Полевой провиант",
+  "shop.handover_provisions.desc": "Еда и вода для рейда, получаемые по обмену.",
+  "shop.handover_grenades.name": "Набор гранат",
+  "shop.handover_grenades.desc": "Набор гранат, получаемый по обмену.",
+  "ui.weekday.0": "вс",
+  "ui.weekday.1": "пн",
+  "ui.weekday.2": "вт",
+  "ui.weekday.3": "ср",
+  "ui.weekday.4": "чт",
+  "ui.weekday.5": "пт",
+  "ui.weekday.6": "сб"
+}

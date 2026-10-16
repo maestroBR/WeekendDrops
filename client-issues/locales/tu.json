@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "196 koltuklu serbest eşya depo",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "ARAZİ TIBBİ KİTİ",
+  "shop.handover_medical.desc": "Bir raid için tıbbi malzemeler, yedek eşyalar için değiştirilebilir.",
+  "shop.handover_ammo.name": "MERMI YENİLEMESİ",
+  "shop.handover_ammo.desc": "Bir raid için mermi, yedek eşyalar için değiştirilebilir.",
+  "shop.handover_provisions.name": "ARAZİ BESİNLERİ",
+  "shop.handover_provisions.desc": "Bir raid için gıda ve su, yedek eşyalar için değiştirilebilir.",
+  "shop.handover_grenades.name": "GRANAT BELİ",
+  "shop.handover_grenades.desc": "Bir granat paketi, yedek eşyalar için değiştirilebilir.",
+  "ui.weekday.0": "Paz",
+  "ui.weekday.1": "Pzt",
+  "ui.weekday.2": "Sal",
+  "ui.weekday.3": "Çar",
+  "ui.weekday.4": "Per",
+  "ui.weekday.5": "Cum",
+  "ui.weekday.6": "Cmt"
+}

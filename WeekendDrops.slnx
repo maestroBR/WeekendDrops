@@ -1,0 +1,32 @@
+<Solution>
+  <Folder Name="/client-audio/" />
+  <Folder Name="/client-audio/tools/">
+    <Project Path="client-audio/tools/Integrate.csproj" />
+  </Folder>
+  <Folder Name="/client-issues/">
+    <Project Path="client-issues/Client.csproj" />
+  </Folder>
+  <Folder Name="/client-layout/">
+    <Project Path="client-layout/Layout.csproj" />
+  </Folder>
+  <Folder Name="/client-preview/" />
+  <Folder Name="/client-preview/sampling-tests/">
+    <Project Path="client-preview/sampling-tests/Replay.csproj" />
+  </Folder>
+  <Folder Name="/client-preview/tests/">
+    <Project Path="client-preview/tests/Replay.csproj" />
+  </Folder>
+  <Folder Name="/tests-audio/">
+    <Project Path="tests-audio/Replay.csproj" />
+  </Folder>
+  <Folder Name="/tests-localization/">
+    <Project Path="tests-localization/Replay.csproj" />
+  </Folder>
+  <Folder Name="/tests-maintenance/">
+    <Project Path="tests-maintenance/Replay.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Replay.csproj" />
+  </Folder>
+  <Project Path="WeekendDrops.csproj" />
+</Solution>

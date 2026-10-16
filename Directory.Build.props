@@ -1,0 +1,7 @@
+<Project>
+  <Import Project="Directory.Build.local.props" Condition="Exists('Directory.Build.local.props')" />
+  <PropertyGroup>
+    <GameRoot Condition="'$(GameRoot)' == ''">$(WEEKEND_GAME_ROOT)</GameRoot>
+    <SptRoot Condition="'$(SptRoot)' == '' and '$(GameRoot)' != ''">$(GameRoot)/SPT_Runtime</SptRoot>
+  </PropertyGroup>
+</Project>

@@ -60,10 +60,10 @@ public class WebConfigService(ISptLogger<WebConfigService> logger)
     public void Save()
     {
         Directory.CreateDirectory(WdPaths.ConfigDir);
-        File.WriteAllText(ConfigPath, JsonSerializer.Serialize(Config, JsonOptions));
+        WeekendDrops.Services.AtomicFile.WriteAllText(ConfigPath, JsonSerializer.Serialize(Config, JsonOptions));
 
         if (_contracts != null)
-            File.WriteAllText(ContractsPath, _contracts.ToJsonString(JsonOptions));
+            WeekendDrops.Services.AtomicFile.WriteAllText(ContractsPath, _contracts.ToJsonString(JsonOptions));
 
         logger.Info("[WeekendDrops] Config saved from the mod page. Restart the server to apply it.");
     }

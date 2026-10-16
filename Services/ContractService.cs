@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using SysPath = System.IO.Path;
 using SPTarkov.DI.Annotations;
@@ -39,6 +39,7 @@ public class ContractService(
 
     public bool CrewSpawnOnPosts => _config.CrewSpawnOnPosts;
     private readonly object _fileLock = new();
+    private readonly object _operationLock = new();
 
     private readonly Dictionary<string, string?> _activeCache = [];
 
@@ -65,63 +66,66 @@ public class ContractService(
 
     public ContractsStateDto GetContractsState(MongoId sessionId)
     {
-        var state = LoadState(sessionId);
-        if (EnsureBoard(state)) SaveState(sessionId, state);
-
-        bool boardDebug = BoardDebug(sessionId);
-
-        var offeredIds = boardDebug ? _config.Contracts.Select(c => c.Id) : state.OfferedContractIds;
-        var offered = offeredIds
-            .Select(id => _config.Contracts.FirstOrDefault(c => c.Id == id))
-            .Where(c => c is not null)
-            .Select(c => c!)
-            .ToList();
-
-        double nextRefresh = 0;
-        if (offered.Count == 0 && state.NextBoardAtUtc is DateTime next)
-            nextRefresh = Math.Max(0, (next - DateTime.UtcNow).TotalSeconds);
-
-        return new ContractsStateDto
+        lock (_operationLock)
         {
-            ActiveContractId   = state.ActiveContractId ?? "",
-            PickAvailable      = boardDebug || !state.PickConsumed,
-            NextRefreshSeconds = nextRefresh,
-            DebugMode          = boardDebug,
-            Contracts = offered.Select(c =>
+            var state = LoadState(sessionId);
+            if (EnsureBoard(state)) SaveState(sessionId, state);
+
+            bool boardDebug = BoardDebug(sessionId);
+
+            var offeredIds = boardDebug ? _config.Contracts.Select(c => c.Id) : state.OfferedContractIds;
+            var offered = offeredIds
+                .Select(id => _config.Contracts.FirstOrDefault(c => c.Id == id))
+                .Where(c => c is not null)
+                .Select(c => c!)
+                .ToList();
+
+            double nextRefresh = 0;
+            if (offered.Count == 0 && state.NextBoardAtUtc is DateTime next)
+                nextRefresh = Math.Max(0, (next - DateTime.UtcNow).TotalSeconds);
+
+            return new ContractsStateDto
             {
-                bool isActive = state.ActiveContractId == c.Id;
-
-                if (!boardDebug && !isActive)
-                    return SealedDto(c, CooldownSecondsLeft(state, c));
-
-                var d = isActive ? Resolve(c, state) : c;
-                return new ContractDto
+                ActiveContractId   = state.ActiveContractId ?? "",
+                PickAvailable      = boardDebug || !state.PickConsumed,
+                NextRefreshSeconds = nextRefresh,
+                DebugMode          = boardDebug,
+                Contracts = offered.Select(c =>
                 {
-                    Id          = d.Id,
-                    Name        = d.Name,
-                    Description = d.Description,
-                    Map         = d.Map,
-                    ObjectiveText  = d.ObjectiveText,
-                    Flavor      = d.Flavor,
-                    Zone        = isActive
-                        ? ((SupplyPostsNeedRepair(c, state) ? state.ChosenAirdropZone : state.ChosenHideoutZone)
-                           ?? FirstZone(d))
-                        : "",
-                    ObjectiveRoles = d.ObjectiveRoles,
-                    ObjectiveCount = d.ObjectiveCount,
-                    GpReward    = d.GpReward,
-                    Dialog        = d.AcceptDialog,
-                    DialogSpeaker = string.IsNullOrEmpty(d.DialogSpeaker) ? d.Name : d.DialogSpeaker,
-                    Active      = state.ActiveContractId == c.Id,
-                    CooldownSeconds = CooldownSecondsLeft(state, c),
-                    TriggerAirdrop  = d.TriggerAirdrop,
-                    AirdropX        = d.AirdropPosition?.X ?? 0f,
-                    AirdropY        = d.AirdropPosition?.Y ?? 0f,
-                    AirdropZ        = d.AirdropPosition?.Z ?? 0f,
-                    HideoutPosts    = isActive ? d.ResolvedPosts : [],
-                };
-            }).ToList()
-        };
+                    bool isActive = state.ActiveContractId == c.Id;
+
+                    if (!boardDebug && !isActive)
+                        return SealedDto(c, CooldownSecondsLeft(state, c));
+
+                    var d = isActive ? Resolve(c, state) : c;
+                    return new ContractDto
+                    {
+                        Id          = d.Id,
+                        Name        = d.Name,
+                        Description = d.Description,
+                        Map         = d.Map,
+                        ObjectiveText  = d.ObjectiveText,
+                        Flavor      = d.Flavor,
+                        Zone        = isActive
+                            ? ((SupplyPostsNeedRepair(c, state) ? state.ChosenAirdropZone : state.ChosenHideoutZone)
+                               ?? FirstZone(d))
+                            : "",
+                        ObjectiveRoles = d.ObjectiveRoles,
+                        ObjectiveCount = d.ObjectiveCount,
+                        GpReward    = d.GpReward,
+                        Dialog        = d.AcceptDialog,
+                        DialogSpeaker = string.IsNullOrEmpty(d.DialogSpeaker) ? d.Name : d.DialogSpeaker,
+                        Active      = state.ActiveContractId == c.Id,
+                        CooldownSeconds = CooldownSecondsLeft(state, c),
+                        TriggerAirdrop  = d.TriggerAirdrop,
+                        AirdropX        = d.AirdropPosition?.X ?? 0f,
+                        AirdropY        = d.AirdropPosition?.Y ?? 0f,
+                        AirdropZ        = d.AirdropPosition?.Z ?? 0f,
+                        HideoutPosts    = isActive ? d.ResolvedPosts : [],
+                    };
+                }).ToList()
+            };
+        }
     }
 
     private static ContractDto SealedDto(ContractDefinition c, double cooldownSeconds)
@@ -160,114 +164,120 @@ public class ContractService(
 
     public string AcceptContract(MongoId sessionId, string contractId)
     {
-        var def = _config.Contracts.FirstOrDefault(c => c.Id == contractId);
-        if (def is null) return "contract_not_found";
+        lock (_operationLock)
+        {
+            var def = _config.Contracts.FirstOrDefault(c => c.Id == contractId);
+            if (def is null) return "contract_not_found";
 
-        var state = LoadState(sessionId);
-        EnsureBoard(state);
+            var state = LoadState(sessionId);
+            EnsureBoard(state);
 
             if (state.ActiveContractId == contractId) return "ok";
 
-        if (!BoardDebug(sessionId))
-        {
-            if (state.PickConsumed) return "pick_used";
-            if (!state.OfferedContractIds.Contains(contractId)) return "not_offered";
-            if (CooldownSecondsLeft(state, def) > 0) return "on_cooldown";
-        }
-
-        ClearRolled(state);
-
-        if (def.BossPool.Count > 0)
-        {
-            var boss = def.BossPool[Random.Shared.Next(def.BossPool.Count)];
-            state.ChosenBossKey = boss.Key;
-            state.ChosenMap = boss.Maps.Count > 0
-                ? boss.Maps[Random.Shared.Next(boss.Maps.Count)].Map
-                : null;
-        }
-
-        if (def.TriggerAirdrop && def.AirdropSpots.Count > 0 && string.IsNullOrEmpty(state.ChosenAirdropZone))
-        {
-            var spot = def.AirdropSpots[Random.Shared.Next(def.AirdropSpots.Count)];
-            state.ChosenAirdropZone = spot.BossZone;
-            state.ChosenAirdropX = spot.X;
-            state.ChosenAirdropY = spot.Y;
-            state.ChosenAirdropZ = spot.Z;
-        }
-
-        if (string.IsNullOrEmpty(state.ChosenAirdropZone))
-        {
-            string? zoneCsv = def.BossPool.Count > 0
-                ? def.BossPool.FirstOrDefault(b => b.Key == state.ChosenBossKey)?
-                      .Maps.FirstOrDefault(m => m.Map == state.ChosenMap)?.BossZone
-                : def.Groups.FirstOrDefault(g => !string.IsNullOrWhiteSpace(g.BossZone))?.BossZone;
-            state.ChosenBossZone = PickOneZone(zoneCsv);
-        }
-
-        if (def.BossPool.Count == 0)
-        {
-            if (def.TriggerAirdrop && !string.IsNullOrEmpty(state.ChosenAirdropZone))
+            if (!BoardDebug(sessionId))
             {
-                state.ChosenHideoutPosts = RingPosts(
-                    state.ChosenAirdropX ?? 0f, state.ChosenAirdropY ?? 0f, state.ChosenAirdropZ ?? 0f,
-                    CrewSize(def), _config.SupplyRingRadius);
-                state.ChosenHideoutZone = state.ChosenAirdropZone;
+                if (state.PickConsumed) return "pick_used";
+                if (!state.OfferedContractIds.Contains(contractId)) return "not_offered";
+                if (CooldownSecondsLeft(state, def) > 0) return "on_cooldown";
             }
-            else if (!def.TriggerAirdrop && _config.MapHideouts is { Count: > 0 })
+
+            ClearRolled(state);
+
+            if (def.BossPool.Count > 0)
             {
-                var pool = _config.MapHideouts
-                    .FirstOrDefault(kv => string.Equals(kv.Key, def.Map, StringComparison.OrdinalIgnoreCase))
-                    .Value;
-                if (pool is { Count: > 0 })
+                var boss = def.BossPool[Random.Shared.Next(def.BossPool.Count)];
+                state.ChosenBossKey = boss.Key;
+                state.ChosenMap = boss.Maps.Count > 0
+                    ? boss.Maps[Random.Shared.Next(boss.Maps.Count)].Map
+                    : null;
+            }
+
+            if (def.TriggerAirdrop && def.AirdropSpots.Count > 0 && string.IsNullOrEmpty(state.ChosenAirdropZone))
+            {
+                var spot = def.AirdropSpots[Random.Shared.Next(def.AirdropSpots.Count)];
+                state.ChosenAirdropZone = spot.BossZone;
+                state.ChosenAirdropX = spot.X;
+                state.ChosenAirdropY = spot.Y;
+                state.ChosenAirdropZ = spot.Z;
+            }
+
+            if (string.IsNullOrEmpty(state.ChosenAirdropZone))
+            {
+                string? zoneCsv = def.BossPool.Count > 0
+                    ? def.BossPool.FirstOrDefault(b => b.Key == state.ChosenBossKey)?
+                          .Maps.FirstOrDefault(m => m.Map == state.ChosenMap)?.BossZone
+                    : def.Groups.FirstOrDefault(g => !string.IsNullOrWhiteSpace(g.BossZone))?.BossZone;
+                state.ChosenBossZone = PickOneZone(zoneCsv);
+            }
+
+            if (def.BossPool.Count == 0)
+            {
+                if (def.TriggerAirdrop && !string.IsNullOrEmpty(state.ChosenAirdropZone))
                 {
-                    var usable = pool
-                        .Where(h => h?.Posts is { Count: > 0 } && !string.IsNullOrWhiteSpace(h.Zone))
-                        .ToList();
-
-                    // The hideout has to sit in the zone the crew is assigned to. Picked
-                    // independently they can be a kilometre apart, and the crew then spawns
-                    // nowhere.
-                    var inZone = usable
-                        .Where(h => string.Equals(h.Zone, state.ChosenBossZone, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-
-                    var hideout = inZone.Count > 0
-                        ? inZone[Random.Shared.Next(inZone.Count)]
-                        : usable.Count > 0 ? usable[Random.Shared.Next(usable.Count)] : null;
-
-                    if (hideout is not null)
+                    state.ChosenHideoutPosts = RingPosts(
+                        state.ChosenAirdropX ?? 0f, state.ChosenAirdropY ?? 0f, state.ChosenAirdropZ ?? 0f,
+                        CrewSize(def), _config.SupplyRingRadius);
+                    state.ChosenHideoutZone = state.ChosenAirdropZone;
+                }
+                else if (!def.TriggerAirdrop && _config.MapHideouts is { Count: > 0 })
+                {
+                    var pool = _config.MapHideouts
+                        .FirstOrDefault(kv => string.Equals(kv.Key, def.Map, StringComparison.OrdinalIgnoreCase))
+                        .Value;
+                    if (pool is { Count: > 0 })
                     {
-                        // No hideout in the rolled zone, so move the crew to a zone that has one.
-                        if (inZone.Count == 0) state.ChosenBossZone = hideout.Zone;
+                        var usable = pool
+                            .Where(h => h?.Posts is { Count: > 0 } && !string.IsNullOrWhiteSpace(h.Zone))
+                            .ToList();
 
-                        state.ChosenHideoutPosts = hideout.Posts;
-                        state.ChosenHideoutZone = hideout.Zone;
+                        // The hideout has to sit in the zone the crew is assigned to. Picked
+                        // independently they can be a kilometre apart, and the crew then spawns
+                        // nowhere.
+                        var inZone = usable
+                            .Where(h => string.Equals(h.Zone, state.ChosenBossZone, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+
+                        var hideout = inZone.Count > 0
+                            ? inZone[Random.Shared.Next(inZone.Count)]
+                            : usable.Count > 0 ? usable[Random.Shared.Next(usable.Count)] : null;
+
+                        if (hideout is not null)
+                        {
+                            // No hideout in the rolled zone, so move the crew to a zone that has one.
+                            if (inZone.Count == 0) state.ChosenBossZone = hideout.Zone;
+
+                            state.ChosenHideoutPosts = hideout.Posts;
+                            state.ChosenHideoutZone = hideout.Zone;
+                        }
                     }
                 }
             }
+
+            state.ActiveContractId = contractId;
+            state.AcceptedAtUtc = DateTime.UtcNow;
+            state.PickConsumed = true;
+            SaveState(sessionId, state);
+            _activeCache[sessionId.ToString()] = contractId;
+
+            var rolled = def.BossPool.Count > 0 ? $" -> {state.ChosenBossKey} @ {state.ChosenMap}" : "";
+            logger.Info($"[WeekendDrops] Contract accepted: {def.Name}{rolled} by {sessionId}");
+            return "ok";
         }
-
-        state.ActiveContractId = contractId;
-        state.AcceptedAtUtc = DateTime.UtcNow;
-        state.PickConsumed = true;
-        SaveState(sessionId, state);
-        _activeCache[sessionId.ToString()] = contractId;
-
-        var rolled = def.BossPool.Count > 0 ? $" -> {state.ChosenBossKey} @ {state.ChosenMap}" : "";
-        logger.Info($"[WeekendDrops] Contract accepted: {def.Name}{rolled} by {sessionId}");
-        return "ok";
     }
 
     public string AbandonContract(MongoId sessionId)
     {
-        var state = LoadState(sessionId);
-        state.ActiveContractId = null;
-        state.AcceptedAtUtc = null;
-        ClearRolled(state);
-        ScheduleNextBoard(state);
-        SaveState(sessionId, state);
-        _activeCache[sessionId.ToString()] = null;
-        return "ok";
+        lock (_operationLock)
+        {
+            var state = LoadState(sessionId);
+            state.ActiveContractId = null;
+            state.AcceptedAtUtc = null;
+            ClearRolled(state);
+            ScheduleNextBoard(state);
+            SaveState(sessionId, state);
+            _activeCache[sessionId.ToString()] = null;
+            return "ok";
+        }
     }
 
     private static void ClearRolled(PlayerContractState state)
@@ -337,116 +347,125 @@ public class ContractService(
 
     public bool DebugAction(MongoId sessionId, string action)
     {
-        if (!_debug)
+        lock (_operationLock)
         {
-            logger.Warning("[WeekendDrops] Contract debug action ignored - debugMode is off");
-            return false;
-        }
-
-        var state = LoadState(sessionId);
-
-        switch (action?.ToLowerInvariant())
-        {
-            case "completeactive":
-                if (string.IsNullOrEmpty(state.ActiveContractId)) return false;
-                var rawDef = _config.Contracts.FirstOrDefault(c => c.Id == state.ActiveContractId);
-                if (rawDef is null) return false;
-                var def = Resolve(rawDef, state);
-                if (def.GpReward > 0) gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(def.GpReward)));
-                var tcDebug = tarcoin.ContractReward;
-                if (tcDebug > 0) tarcoinBalance.Add(sessionId.ToString(), tcDebug);
-                if (!string.IsNullOrEmpty(def.CrateTemplateId))
-                    mailSendService.SendSystemMessageToPlayer(
-                        sessionId, $"Contract complete: {def.Name}",
-                        BuildCrateReward(def.CrateTemplateId),
-                        (long)TimeSpan.FromHours(CrateExpiryHours).TotalSeconds);
-                state.CompletedAtUtc[def.Id] = DateTime.UtcNow;
-                state.ActiveContractId = null;
-                state.AcceptedAtUtc = null;
-                ClearRolled(state);
-                logger.Info($"[WeekendDrops] DEBUG force-completed contract '{def.Id}' (+{def.GpReward} GP)");
-                break;
-
-            case "realboard":
-                var rsid = sessionId.ToString();
-                if (_realBoardSim.Remove(rsid))
-                {
-                    logger.Info("[WeekendDrops] DEBUG real-board sim OFF (all contracts offered again)");
-                    break;
-                }
-                _realBoardSim.Add(rsid);
-                state.ActiveContractId = null;
-                state.AcceptedAtUtc = null;
-                state.PickConsumed = false;
-                state.CompletedAtUtc.Clear();
-                state.BoardId = null;
-                state.OfferedContractIds = [];
-                state.NextBoardAtUtc = null;
-                ClearRolled(state);
-                logger.Info("[WeekendDrops] DEBUG real-board sim ON (sealed, 3 cards, single pick)");
-                break;
-
-            case "reset":
-                state.ActiveContractId = null;
-                state.AcceptedAtUtc = null;
-                state.PickConsumed = false;
-                state.CompletedAtUtc.Clear();
-                state.BoardId = null;
-                state.OfferedContractIds = [];
-                state.NextBoardAtUtc = null;
-                ClearRolled(state);
-                logger.Info("[WeekendDrops] DEBUG contract state reset");
-                break;
-
-            default:
-                logger.Warning($"[WeekendDrops] Unknown contract debug action '{action}'");
+            if (!_debug)
+            {
+                logger.Warning("[WeekendDrops] Contract debug action ignored - debugMode is off");
                 return false;
-        }
+            }
 
-        SaveState(sessionId, state);
-        _activeCache[sessionId.ToString()] = state.ActiveContractId;
-        return true;
+            var state = LoadState(sessionId);
+
+            switch (action?.ToLowerInvariant())
+            {
+                case "completeactive":
+                    if (string.IsNullOrEmpty(state.ActiveContractId)) return false;
+                    var rawDef = _config.Contracts.FirstOrDefault(c => c.Id == state.ActiveContractId);
+                    if (rawDef is null) return false;
+                    var def = Resolve(rawDef, state);
+                    if (def.GpReward > 0) gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(def.GpReward)));
+                    var tcDebug = tarcoin.ContractReward;
+                    if (tcDebug > 0) tarcoinBalance.Add(sessionId.ToString(), tcDebug);
+                    if (!string.IsNullOrEmpty(def.CrateTemplateId))
+                        mailSendService.SendSystemMessageToPlayer(
+                            sessionId, $"Contract complete: {def.Name}",
+                            BuildCrateReward(def.CrateTemplateId),
+                            (long)TimeSpan.FromHours(CrateExpiryHours).TotalSeconds);
+                    state.CompletedAtUtc[def.Id] = DateTime.UtcNow;
+                    state.ActiveContractId = null;
+                    state.AcceptedAtUtc = null;
+                    ClearRolled(state);
+                    logger.Info($"[WeekendDrops] DEBUG force-completed contract '{def.Id}' (+{def.GpReward} GP)");
+                    break;
+
+                case "realboard":
+                    var rsid = sessionId.ToString();
+                    if (_realBoardSim.Remove(rsid))
+                    {
+                        logger.Info("[WeekendDrops] DEBUG real-board sim OFF (all contracts offered again)");
+                        break;
+                    }
+                    _realBoardSim.Add(rsid);
+                    state.ActiveContractId = null;
+                    state.AcceptedAtUtc = null;
+                    state.PickConsumed = false;
+                    state.CompletedAtUtc.Clear();
+                    state.BoardId = null;
+                    state.OfferedContractIds = [];
+                    state.NextBoardAtUtc = null;
+                    ClearRolled(state);
+                    logger.Info("[WeekendDrops] DEBUG real-board sim ON (sealed, 3 cards, single pick)");
+                    break;
+
+                case "reset":
+                    state.ActiveContractId = null;
+                    state.AcceptedAtUtc = null;
+                    state.PickConsumed = false;
+                    state.CompletedAtUtc.Clear();
+                    state.BoardId = null;
+                    state.OfferedContractIds = [];
+                    state.NextBoardAtUtc = null;
+                    ClearRolled(state);
+                    logger.Info("[WeekendDrops] DEBUG contract state reset");
+                    break;
+
+                default:
+                    logger.Warning($"[WeekendDrops] Unknown contract debug action '{action}'");
+                    return false;
+            }
+
+            SaveState(sessionId, state);
+            _activeCache[sessionId.ToString()] = state.ActiveContractId;
+            return true;
+        }
     }
 
     public ContractDefinition? GetActiveContractForMap(MongoId sessionId, string location)
     {
-        var state = LoadState(sessionId);
-        if (string.IsNullOrEmpty(state.ActiveContractId)) return null;
+        lock (_operationLock)
+        {
+            var state = LoadState(sessionId);
+            if (string.IsNullOrEmpty(state.ActiveContractId)) return null;
 
-        var def = _config.Contracts.FirstOrDefault(c => c.Id == state.ActiveContractId);
-        if (def is null) return null;
-        var resolved = Resolve(def, state);
-        return LocationUtil.Matches(location, resolved.Map) ? resolved : null;
+            var def = _config.Contracts.FirstOrDefault(c => c.Id == state.ActiveContractId);
+            if (def is null) return null;
+            var resolved = Resolve(def, state);
+            return LocationUtil.Matches(location, resolved.Map) ? resolved : null;
+        }
     }
 
     public List<ContractDefinition> GetAllActiveContractsForMap(string location)
     {
-        var found = new List<ContractDefinition>();
-        if (!Directory.Exists(_dataDir)) return found;
-
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var path in Directory.EnumerateFiles(_dataDir, "*_contracts.json"))
+        lock (_operationLock)
         {
-            var file = SysPath.GetFileName(path);
-            var idStr = file[..^"_contracts.json".Length];
-            MongoId sessionId;
-            try { sessionId = new MongoId(idStr); } catch { continue; }
+            var found = new List<ContractDefinition>();
+            if (!Directory.Exists(_dataDir)) return found;
 
-            var def = GetActiveContractForMap(sessionId, location);
-            if (def is null) continue;
-            if (!seen.Add(SpawnSignature(def))) continue;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            found.Add(def);
-            if (found.Count >= Math.Max(1, _config.MaxContractsPerRaid))
+            foreach (var path in Directory.EnumerateFiles(_dataDir, "*_contracts.json"))
             {
-                logger.Warning(
-                    $"[WeekendDrops] {_config.MaxContractsPerRaid} contract(s) already injected into {location}; " +
-                    "ignoring the rest this raid.");
-                break;
+                var file = SysPath.GetFileName(path);
+                var idStr = file[..^"_contracts.json".Length];
+                MongoId sessionId;
+                try { sessionId = new MongoId(idStr); } catch { continue; }
+
+                var def = GetActiveContractForMap(sessionId, location);
+                if (def is null) continue;
+                if (!seen.Add(SpawnSignature(def))) continue;
+
+                found.Add(def);
+                if (found.Count >= Math.Max(1, _config.MaxContractsPerRaid))
+                {
+                    logger.Warning(
+                        $"[WeekendDrops] {_config.MaxContractsPerRaid} contract(s) already injected into {location}; " +
+                        "ignoring the rest this raid.");
+                    break;
+                }
             }
+            return found;
         }
-        return found;
     }
 
     private static string SpawnSignature(ContractDefinition def) =>
@@ -575,39 +594,42 @@ public class ContractService(
 
     public string CompleteContract(MongoId sessionId, ContractResultRequest r)
     {
-        var rawDef = _config.Contracts.FirstOrDefault(c => c.Id == r.ContractId);
-        if (rawDef is null) return "contract_not_found";
+        lock (_operationLock)
+        {
+            var rawDef = _config.Contracts.FirstOrDefault(c => c.Id == r.ContractId);
+            if (rawDef is null) return "contract_not_found";
 
-        var state = LoadState(sessionId);
-        if (state.ActiveContractId != rawDef.Id)           return "not_active";
+            var state = LoadState(sessionId);
+            if (state.ActiveContractId != rawDef.Id)           return "not_active";
 
-        var def = Resolve(rawDef, state);
-        if (!LocationUtil.Matches(r.Location, def.Map))    return "wrong_map";
-        if (def.RequireExtract && !r.Survived)             return "not_extracted";
+            var def = Resolve(rawDef, state);
+            if (!LocationUtil.Matches(r.Location, def.Map))    return "wrong_map";
+            if (def.RequireExtract && !r.Survived)             return "not_extracted";
 
-        if (def.GpReward > 0)
-            gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(def.GpReward)));
+            if (def.GpReward > 0)
+                gpBalance.Add(sessionId.ToString(), collection.ScaleGp(sessionId.ToString(), modifiers.ScaleGp(def.GpReward)));
 
-        var tcContract = tarcoin.ContractReward;
-        if (tcContract > 0) tarcoinBalance.Add(sessionId.ToString(), tcContract);
+            var tcContract = tarcoin.ContractReward;
+            if (tcContract > 0) tarcoinBalance.Add(sessionId.ToString(), tcContract);
 
-        if (!string.IsNullOrEmpty(def.CrateTemplateId))
-            mailSendService.SendSystemMessageToPlayer(
-                sessionId,
-                $"Contract complete: {def.Name}",
-                BuildCrateReward(def.CrateTemplateId),
-                (long)TimeSpan.FromHours(CrateExpiryHours).TotalSeconds);
+            if (!string.IsNullOrEmpty(def.CrateTemplateId))
+                mailSendService.SendSystemMessageToPlayer(
+                    sessionId,
+                    $"Contract complete: {def.Name}",
+                    BuildCrateReward(def.CrateTemplateId),
+                    (long)TimeSpan.FromHours(CrateExpiryHours).TotalSeconds);
 
-        state.ActiveContractId = null;
-        state.AcceptedAtUtc = null;
-        ClearRolled(state);
-        state.CompletedAtUtc[def.Id] = DateTime.UtcNow;
-        ScheduleNextBoard(state);
-        SaveState(sessionId, state);
-        _activeCache[sessionId.ToString()] = null;
+            state.ActiveContractId = null;
+            state.AcceptedAtUtc = null;
+            ClearRolled(state);
+            state.CompletedAtUtc[def.Id] = DateTime.UtcNow;
+            ScheduleNextBoard(state);
+            SaveState(sessionId, state);
+            _activeCache[sessionId.ToString()] = null;
 
-        logger.Info($"[WeekendDrops] Contract complete: {def.Name} (+{def.GpReward} GP) by {sessionId}");
-        return "ok";
+            logger.Info($"[WeekendDrops] Contract complete: {def.Name} (+{def.GpReward} GP) by {sessionId}");
+            return "ok";
+        }
     }
 
     private ContractDefinition? GetActiveContract(MongoId sessionId)
@@ -625,16 +647,19 @@ public class ContractService(
 
     public List<string> BonusItemsForRole(MongoId sessionId, string role)
     {
-        var def = GetActiveContract(sessionId);
-        if (def is null || def.BonusItems.Count == 0 || string.IsNullOrEmpty(role)) return [];
+        lock (_operationLock)
+        {
+            var def = GetActiveContract(sessionId);
+            if (def is null || def.BonusItems.Count == 0 || string.IsNullOrEmpty(role)) return [];
 
-        if (def.BossPool.Count > 0)
-            def = Resolve(def, LoadState(sessionId));
+            if (def.BossPool.Count > 0)
+                def = Resolve(def, LoadState(sessionId));
 
-        bool isSpawnRole = def.Groups.Any(g =>
-            string.Equals(g.BossName, role, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(g.EscortType, role, StringComparison.OrdinalIgnoreCase));
-        return isSpawnRole ? def.BonusItems : [];
+            bool isSpawnRole = def.Groups.Any(g =>
+                string.Equals(g.BossName, role, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(g.EscortType, role, StringComparison.OrdinalIgnoreCase));
+            return isSpawnRole ? def.BonusItems : [];
+        }
     }
 
     private const int BoardSize = 3;
@@ -724,7 +749,7 @@ public class ContractService(
     {
         var json = JsonSerializer.Serialize(state, JsonOptions);
         lock (_fileLock)
-            File.WriteAllText(StatePath(sessionId), json);
+            AtomicFile.WriteAllText(StatePath(sessionId), json);
     }
 
     private T? LoadJson<T>(string path)

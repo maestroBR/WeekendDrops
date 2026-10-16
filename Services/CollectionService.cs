@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using SysPath = System.IO.Path;
 using SPTarkov.DI.Annotations;
@@ -29,6 +29,7 @@ public class CollectionService(
 
     private CollectionConfig _config = new();
     private readonly object _fileLock = new();
+    private readonly object _operationLock = new();
 
     private readonly string _dataDir = SysPath.Combine(WdPaths.DataDir, "collection");
 
@@ -204,34 +205,37 @@ public class CollectionService(
 
     public string Donate(string sessionId, string templateId)
     {
-        if (!Enabled) return "disabled";
-        if (string.IsNullOrEmpty(templateId)) return "unknown_item";
-
-        var set = _config.Sets.FirstOrDefault(s => s.ItemIds.Contains(templateId));
-        if (set is null) return "unknown_item";
-
-        var state = Load(sessionId);
-        if (state.Donated.Contains(templateId)) return "already_donated";
-
-        state.Donated.Add(templateId);
-
-        int gp = Math.Max(0, set.GpPerItem);
-        int donatedInSet = set.ItemIds.Count(state.Donated.Contains);
-
-        foreach (var ms in set.Milestones.Where(m => m.Required <= donatedInSet))
+        lock (_operationLock)
         {
-            string key = set.Id + ":" + ms.Required;
-            if (state.ClaimedMilestones.Contains(key)) continue;
-            state.ClaimedMilestones.Add(key);
-            gp += Math.Max(0, ms.GpReward);
-            logger.Info($"[WeekendDrops] Collection: {sessionId} completed '{set.Id}' milestone {ms.Required} ({ms.Perk})");
+            if (!Enabled) return "disabled";
+            if (string.IsNullOrEmpty(templateId)) return "unknown_item";
+
+            var set = _config.Sets.FirstOrDefault(s => s.ItemIds.Contains(templateId));
+            if (set is null) return "unknown_item";
+
+            var state = Load(sessionId);
+            if (state.Donated.Contains(templateId)) return "already_donated";
+
+            state.Donated.Add(templateId);
+
+            int gp = Math.Max(0, set.GpPerItem);
+            int donatedInSet = set.ItemIds.Count(state.Donated.Contains);
+
+            foreach (var ms in set.Milestones.Where(m => m.Required <= donatedInSet))
+            {
+                string key = set.Id + ":" + ms.Required;
+                if (state.ClaimedMilestones.Contains(key)) continue;
+                state.ClaimedMilestones.Add(key);
+                gp += Math.Max(0, ms.GpReward);
+                logger.Info($"[WeekendDrops] Collection: {sessionId} completed '{set.Id}' milestone {ms.Required} ({ms.Perk})");
+            }
+
+            Save(sessionId, state);
+            if (gp > 0) gpBalance.Add(sessionId, gp);
+
+            logger.Info($"[WeekendDrops] Collection: {sessionId} donated {templateId} (+{gp} GP)");
+            return "ok";
         }
-
-        Save(sessionId, state);
-        if (gp > 0) gpBalance.Add(sessionId, gp);
-
-        logger.Info($"[WeekendDrops] Collection: {sessionId} donated {templateId} (+{gp} GP)");
-        return "ok";
     }
 
     private void ReconcileMilestones(string sessionId)
@@ -261,17 +265,20 @@ public class CollectionService(
 
     private double PerkTotal(string sessionId, CollectionPerkKind kind)
     {
-        if (!Enabled) return 0;
-        var state = Load(sessionId);
-        double total = 0;
-
-        foreach (var set in _config.Sets)
+        lock (_operationLock)
         {
-            int donated = set.ItemIds.Count(state.Donated.Contains);
-            foreach (var ms in set.Milestones)
-                if (ms.Perk == kind && ms.Required <= donated) total += ms.PerkValue;
+            if (!Enabled) return 0;
+            var state = Load(sessionId);
+            double total = 0;
+
+            foreach (var set in _config.Sets)
+            {
+                int donated = set.ItemIds.Count(state.Donated.Contains);
+                foreach (var ms in set.Milestones)
+                    if (ms.Perk == kind && ms.Required <= donated) total += ms.PerkValue;
+            }
+            return total;
         }
-        return total;
     }
 
     public double GpBonusMultiplier(string sessionId) =>
@@ -286,54 +293,57 @@ public class CollectionService(
 
     public CollectionStateDto GetState(string sessionId)
     {
-        var dto = new CollectionStateDto { Enabled = Enabled, RequireFoundInRaid = _config.RequireFoundInRaid };
-        if (!Enabled) return dto;
-
-        ReconcileMilestones(sessionId);
-        var state = Load(sessionId);
-
-        dto.Sets = _config.Sets.Select(set =>
+        lock (_operationLock)
         {
-            int donated = set.ItemIds.Count(state.Donated.Contains);
-            return new CollectionSetDto
+            var dto = new CollectionStateDto { Enabled = Enabled, RequireFoundInRaid = _config.RequireFoundInRaid };
+            if (!Enabled) return dto;
+
+            ReconcileMilestones(sessionId);
+            var state = Load(sessionId);
+
+            dto.Sets = _config.Sets.Select(set =>
             {
-                Id = set.Id,
-                Name = set.Name,
-                Description = set.Description,
-                GpPerItem = set.GpPerItem,
-                Donated = donated,
-                Total = set.ItemIds.Count,
-                Items = set.ItemIds.Select(id => new CollectionItemDto
+                int donated = set.ItemIds.Count(state.Donated.Contains);
+                return new CollectionSetDto
                 {
-                    TemplateId = id,
-                    Donated = state.Donated.Contains(id),
-                    QuestItem = IsQuestItem(id)
-                }).ToList(),
-                Milestones = set.Milestones.OrderBy(m => m.Required).Select(m => new CollectionMilestoneDto
-                {
-                    Required = m.Required,
-                    GpReward = m.GpReward,
-                    Perk = m.Perk.ToString(),
-                    PerkValue = m.PerkValue,
-                    Description = m.Description,
-                    Reached = m.Required <= donated
-                }).ToList()
-            };
-        }).ToList();
+                    Id = set.Id,
+                    Name = set.Name,
+                    Description = set.Description,
+                    GpPerItem = set.GpPerItem,
+                    Donated = donated,
+                    Total = set.ItemIds.Count,
+                    Items = set.ItemIds.Select(id => new CollectionItemDto
+                    {
+                        TemplateId = id,
+                        Donated = state.Donated.Contains(id),
+                        QuestItem = IsQuestItem(id)
+                    }).ToList(),
+                    Milestones = set.Milestones.OrderBy(m => m.Required).Select(m => new CollectionMilestoneDto
+                    {
+                        Required = m.Required,
+                        GpReward = m.GpReward,
+                        Perk = m.Perk.ToString(),
+                        PerkValue = m.PerkValue,
+                        Description = m.Description,
+                        Reached = m.Required <= donated
+                    }).ToList()
+                };
+            }).ToList();
 
-        if (state.PendingPrestigeGp > 0)
-        {
-            dto.PrestigeGp     = state.PendingPrestigeGp;
-            dto.PrestigePieces = state.PendingPrestigePieces;
-            dto.PrestigeSets   = state.PendingPrestigeSets;
+            if (state.PendingPrestigeGp > 0)
+            {
+                dto.PrestigeGp     = state.PendingPrestigeGp;
+                dto.PrestigePieces = state.PendingPrestigePieces;
+                dto.PrestigeSets   = state.PendingPrestigeSets;
 
-            state.PendingPrestigeGp = 0;
-            state.PendingPrestigePieces = 0;
-            state.PendingPrestigeSets = 0;
-            Save(sessionId, state);
+                state.PendingPrestigeGp = 0;
+                state.PendingPrestigePieces = 0;
+                state.PendingPrestigeSets = 0;
+                Save(sessionId, state);
+            }
+
+            return dto;
         }
-
-        return dto;
     }
 
     private string StatePath(string sessionId) => SysPath.Combine(_dataDir, $"{sessionId}.json");
@@ -445,7 +455,7 @@ public class CollectionService(
         {
             Directory.CreateDirectory(_dataDir);
             var json = JsonSerializer.Serialize(state, JsonOptions);
-            lock (_fileLock) File.WriteAllText(StatePath(sessionId), json);
+            lock (_fileLock) AtomicFile.WriteAllText(StatePath(sessionId), json);
         }
         catch (Exception ex)
         {

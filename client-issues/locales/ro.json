@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "196-slot depozit pentru obiecte lângă",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "Kit Medical de Campanie",
+  "shop.handover_medical.desc": "Suplimente medicale pentru un raid, schimbate cu obiecte de rezervă.",
+  "shop.handover_ammo.name": "Reîncărcare cu Muniție",
+  "shop.handover_ammo.desc": "Muniție pentru un raid, schimbată cu obiecte de rezervă.",
+  "shop.handover_provisions.name": "Provisione de Campanie",
+  "shop.handover_provisions.desc": "Mâncare și apă pentru un raid, schimbate cu obiecte de rezervă.",
+  "shop.handover_grenades.name": "Beltă de Granate",
+  "shop.handover_grenades.desc": "Un pachet de granate, schimbate cu obiecte de rezervă.",
+  "ui.weekday.0": "dum.",
+  "ui.weekday.1": "lun.",
+  "ui.weekday.2": "mar.",
+  "ui.weekday.3": "mie.",
+  "ui.weekday.4": "joi",
+  "ui.weekday.5": "vin.",
+  "ui.weekday.6": "sâm."
+}

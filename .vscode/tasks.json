@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Weekend: build server",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "WeekendDrops.csproj",
+        "-c",
+        "Release"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Weekend: build client",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "client-audio/build-local.py"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Weekend: package 1.0.8",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "scripts/build-release.py"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Weekend: maintenance tests",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "tests-maintenance/Replay.csproj"
+      ],
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "shop.shop_junkbox.desc": "Archiviazione libera da 196 posti",
+  "ui.scheduleRange": "{0} {1} – {2} {3}",
+  "shop.handover_medical.name": "Kit Medico di Campo",
+  "shop.handover_medical.desc": "Prodotti medici per un raid, scambiati per oggetti in eccesso.",
+  "shop.handover_ammo.name": "Rifornimento di Ammazza",
+  "shop.handover_ammo.desc": "Ammazza per un raid, scambiata per oggetti in eccesso.",
+  "shop.handover_provisions.name": "Provviste di Campo",
+  "shop.handover_provisions.desc": "Cibo e acqua per un raid, scambiati per oggetti in eccesso.",
+  "shop.handover_grenades.name": "Fascia di Granate",
+  "shop.handover_grenades.desc": "Un pacchetto di granate, scambiato per oggetti in eccesso.",
+  "ui.weekday.0": "dom",
+  "ui.weekday.1": "lun",
+  "ui.weekday.2": "mar",
+  "ui.weekday.3": "mer",
+  "ui.weekday.4": "gio",
+  "ui.weekday.5": "ven",
+  "ui.weekday.6": "sab"
+}

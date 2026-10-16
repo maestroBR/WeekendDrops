@@ -65,7 +65,7 @@
   {
     "id": "shop_junkbox",
     "name": "Lucky Scav Junkbox",
-    "description": "78-slot loose item storage",
+    "description": "196-slot loose item storage",
     "templateId": "5b7c710788a4506dec015957",
     "gpCost": 1600,
     "stock": -1,
@@ -278,10 +278,22 @@
     "stock": -1,
     "count": 1,
     "contents": [
-      { "templateId": "59e690b686f7746c9f75e848", "count": 60 },
-      { "templateId": "59e690b686f7746c9f75e848", "count": 60 },
-      { "templateId": "5aaa5dfee5b5b000140293d3", "count": 3 },
-      { "templateId": "544fb45d4bdc2dee738b4568", "count": 1 }
+      {
+        "templateId": "59e690b686f7746c9f75e848",
+        "count": 60
+      },
+      {
+        "templateId": "59e690b686f7746c9f75e848",
+        "count": 60
+      },
+      {
+        "templateId": "5aaa5dfee5b5b000140293d3",
+        "count": 3
+      },
+      {
+        "templateId": "544fb45d4bdc2dee738b4568",
+        "count": 1
+      }
     ]
   },
   {
@@ -293,10 +305,22 @@
     "stock": -1,
     "count": 1,
     "contents": [
-      { "templateId": "5efb0c1bd79ff02a1f5e68d9", "count": 40 },
-      { "templateId": "5efb0c1bd79ff02a1f5e68d9", "count": 40 },
-      { "templateId": "590c657e86f77412b013051d", "count": 1 },
-      { "templateId": "5d02797c86f774203f38e30a", "count": 1 }
+      {
+        "templateId": "5efb0c1bd79ff02a1f5e68d9",
+        "count": 40
+      },
+      {
+        "templateId": "5efb0c1bd79ff02a1f5e68d9",
+        "count": 40
+      },
+      {
+        "templateId": "590c657e86f77412b013051d",
+        "count": 1
+      },
+      {
+        "templateId": "5d02797c86f774203f38e30a",
+        "count": 1
+      }
     ]
   },
   {
@@ -308,10 +332,22 @@
     "stock": -1,
     "count": 1,
     "contents": [
-      { "templateId": "59e0d99486f7744a32234762", "count": 60 },
-      { "templateId": "59e0d99486f7744a32234762", "count": 60 },
-      { "templateId": "5a0c27731526d80618476ac4", "count": 2 },
-      { "templateId": "590c678286f77426c9660122", "count": 1 }
+      {
+        "templateId": "59e0d99486f7744a32234762",
+        "count": 60
+      },
+      {
+        "templateId": "59e0d99486f7744a32234762",
+        "count": 60
+      },
+      {
+        "templateId": "5a0c27731526d80618476ac4",
+        "count": 2
+      },
+      {
+        "templateId": "590c678286f77426c9660122",
+        "count": 1
+      }
     ]
   },
   {
@@ -323,10 +359,22 @@
     "stock": -1,
     "count": 1,
     "contents": [
-      { "templateId": "5e023d48186a883be655e551", "count": 40 },
-      { "templateId": "5e023d48186a883be655e551", "count": 40 },
-      { "templateId": "590c657e86f77412b013051d", "count": 1 },
-      { "templateId": "5d02797c86f774203f38e30a", "count": 1 }
+      {
+        "templateId": "5e023d48186a883be655e551",
+        "count": 40
+      },
+      {
+        "templateId": "5e023d48186a883be655e551",
+        "count": 40
+      },
+      {
+        "templateId": "590c657e86f77412b013051d",
+        "count": 1
+      },
+      {
+        "templateId": "5d02797c86f774203f38e30a",
+        "count": 1
+      }
     ]
   },
   {

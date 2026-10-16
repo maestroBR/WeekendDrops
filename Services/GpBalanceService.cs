@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using SysPath = System.IO.Path;
 using SPTarkov.DI.Annotations;
 using SPTarkov.Common.Models.Logging;
@@ -39,8 +39,10 @@ public class GpBalanceService
         if (amount <= 0) return;
         lock (_lock)
         {
-            _balances[sessionId] = (_balances.TryGetValue(sessionId, out var v) ? v : 0) + amount;
-            _weeklyEarned[sessionId] = (_weeklyEarned.TryGetValue(sessionId, out var w) ? w : 0) + amount;
+            int nextBalance = checked((_balances.TryGetValue(sessionId, out var v) ? v : 0) + amount);
+            int nextWeekly = checked((_weeklyEarned.TryGetValue(sessionId, out var w) ? w : 0) + amount);
+            _balances[sessionId] = nextBalance;
+            _weeklyEarned[sessionId] = nextWeekly;
             Save();
             SaveWeekly();
         }
@@ -65,7 +67,8 @@ public class GpBalanceService
 
     public bool TrySpend(string sessionId, int amount)
     {
-        if (amount <= 0) return true;
+        if (amount < 0) return false;
+        if (amount == 0) return true;
         lock (_lock)
         {
             int cur = _balances.TryGetValue(sessionId, out var v) ? v : 0;
@@ -84,8 +87,10 @@ public class GpBalanceService
         {
             int from = _balances.TryGetValue(fromId, out var f) ? f : 0;
             if (from < amount) return false;
+            int target = _balances.TryGetValue(toId, out var t) ? t : 0;
+            if (target > int.MaxValue - amount) return false;
             _balances[fromId] = from - amount;
-            _balances[toId] = (_balances.TryGetValue(toId, out var t) ? t : 0) + amount;
+            _balances[toId] = target + amount;
             Save();
             return true;
         }
@@ -97,13 +102,12 @@ public class GpBalanceService
         {
             if (File.Exists(_file))
                 _balances = JsonSerializer.Deserialize<Dictionary<string, int>>(
-                    File.ReadAllText(_file)) ?? new();
+                    File.ReadAllText(_file)) ?? throw new JsonException("Balance file contains null");
         }
         catch (Exception ex)
         {
-            _balances = new();
-            logger.Error($"[WeekendDrops] gp_balances.json could not be read - every GP balance reads as 0 " +
-                         $"until it is restored: {ex.Message}", null);
+            logger.Error($"[WeekendDrops] GP balances could not be loaded. Refusing to replace existing balances: {ex.Message}", null);
+            throw new InvalidDataException("Restore the unreadable GP balance file before retrying.", ex);
         }
     }
 
@@ -112,7 +116,7 @@ public class GpBalanceService
         try
         {
             Directory.CreateDirectory(SysPath.GetDirectoryName(_file)!);
-            File.WriteAllText(_file, JsonSerializer.Serialize(_balances, JsonOptions));
+            AtomicFile.WriteAllText(_file, JsonSerializer.Serialize(_balances, JsonOptions));
         }
         catch (Exception ex)
         {
@@ -138,7 +142,7 @@ public class GpBalanceService
         try
         {
             Directory.CreateDirectory(SysPath.GetDirectoryName(_weeklyFile)!);
-            File.WriteAllText(_weeklyFile, JsonSerializer.Serialize(
+            AtomicFile.WriteAllText(_weeklyFile, JsonSerializer.Serialize(
                 new WeeklyEarnedStore { Period = _weeklyPeriod, Earned = _weeklyEarned }, JsonOptions));
         }
         catch (Exception ex)
